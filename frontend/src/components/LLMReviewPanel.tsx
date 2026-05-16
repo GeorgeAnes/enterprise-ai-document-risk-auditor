@@ -10,12 +10,13 @@ function LLMReviewPanel({ review }: LLMReviewPanelProps) {
     return null;
   }
 
-  const title = review.status === "completed" ? "Gemini reviewer" : "Gemini reviewer setup";
+  const providerLabel = review.provider === "openai_compatible" ? "OpenAI-compatible reviewer" : "Gemini reviewer";
+  const title = review.status === "completed" ? providerLabel : `${providerLabel} setup`;
   const detail =
     review.status === "not_configured"
-      ? "Set LLM_MODE=gemini and replace GEMINI_API_KEY in your local .env file, then restart the backend."
+      ? setupMessage(review.provider)
       : review.status === "error"
-        ? review.error || "Gemini returned an error. The deterministic audit still completed."
+        ? review.error || "The optional LLM reviewer returned an error. The deterministic audit still completed."
         : review.summary;
 
   return (
@@ -38,6 +39,13 @@ function LLMReviewPanel({ review }: LLMReviewPanelProps) {
       )}
     </section>
   );
+}
+
+function setupMessage(provider: string): string {
+  if (provider === "openai_compatible") {
+    return "Set LLM_MODE=openai_compatible and configure OPENAI_BASE_URL, OPENAI_API_KEY, and OPENAI_MODEL in your local .env file, then restart the backend.";
+  }
+  return "Set LLM_MODE=gemini and replace GEMINI_API_KEY in your local .env file, then restart the backend.";
 }
 
 export default LLMReviewPanel;

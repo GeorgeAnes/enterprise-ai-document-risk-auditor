@@ -6,7 +6,7 @@ The default demo uses only small synthetic documents stored in `data/samples`. T
 
 These datasets are relevant for optional evaluation, but they are not downloaded by default:
 
-- FEVER: useful for claim verification experiments with evidence retrieval and relative risk checks.
+- FEVER: useful for lightweight risk-score separation sanity checks across support labels.
 - CUAD: useful for contract review, clause-level extraction, vague-clause detection, and long-document stress testing.
 - QASPER: useful for evidence-grounded question answering over research papers.
 
@@ -22,7 +22,7 @@ Do not commit full public datasets, private evidence packs, or client documents 
 ## Included Scripts
 
 - `scripts/prepare_fever_subset.py`: creates a small FEVER JSONL subset for local risk testing.
-- `scripts/evaluate_fever_risk.py`: checks whether supported FEVER claims receive lower average risk than refuted or not-enough-info claims.
+- `scripts/evaluate_fever_risk.py`: checks whether supported FEVER claims receive lower average risk than refuted or not-enough-info claims in a small sanity check.
 - `scripts/prepare_cuad_subset.py`: loads a few local CUAD-style contracts and writes a compact audit summary with high-risk clauses and evidence snippets.
 
 CUAD is a contract-review stress test in this project. It is not treated as a hallucination benchmark.

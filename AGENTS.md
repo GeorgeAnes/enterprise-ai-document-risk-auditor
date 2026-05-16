@@ -29,7 +29,7 @@ Backend modules:
 
 - `backend/app/core/audit_pipeline.py`: shared deterministic audit entry point used by API and scripts.
 - `ingest.py`, `chunk.py`, `claim_extraction.py`, `retrieval.py`, `risk_scoring.py`, `report_generation.py`: deterministic pipeline.
-- `llm_provider.py`: optional Gemini reviewer layer via REST `generateContent`; deterministic audit remains the baseline.
+- `llm_provider.py`: optional Gemini and OpenAI-compatible reviewer layer; deterministic audit remains the baseline.
 
 Frontend:
 
@@ -57,6 +57,20 @@ To test it locally:
 5. Restart the backend.
 
 The frontend shows a Gemini reviewer panel only when Gemini mode is configured, not configured, completed, or errored. If disabled, the panel is hidden.
+
+## LM Studio Setup
+
+LM Studio is optional and disabled by default.
+
+To test it locally:
+
+1. Start the LM Studio local server.
+2. Copy `.env.example` to `.env`.
+3. Set `LLM_MODE=openai_compatible`.
+4. Keep `OPENAI_BASE_URL=http://127.0.0.1:1234/v1`.
+5. Keep `OPENAI_API_KEY=lm-studio` unless your endpoint requires another value.
+6. Set `OPENAI_MODEL` to the loaded model id shown in LM Studio.
+7. Restart the backend.
 
 ## Verification Commands
 

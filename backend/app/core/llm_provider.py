@@ -20,6 +20,7 @@ PLACEHOLDER_VALUES = {
     "replace-with-your-gemini-api-key",
     "your-gemini-api-key-here",
     "paste-your-gemini-api-key-here",
+    "replace-with-your-openai-compatible-key",
 }
 
 
@@ -57,7 +58,11 @@ def load_llm_settings() -> LLMSettings:
 
 def llm_is_enabled() -> bool:
     settings = load_llm_settings()
-    return settings.mode == "gemini" and _has_real_key(settings.api_key) and bool(settings.model)
+    if settings.mode == "gemini":
+        return _has_real_key(settings.api_key) and bool(settings.model)
+    if settings.mode in {"openai_compatible", "openai"}:
+        return bool(settings.base_url and settings.api_key and settings.model)
+    return False
 
 
 def deterministic_mode_note() -> str:
@@ -76,13 +81,24 @@ def generate_optional_llm_review(
     if settings.mode == "off":
         return LLMReview(enabled=False, provider="none", status="disabled")
 
+    if settings.mode in {"openai_compatible", "openai"}:
+        if not settings.base_url or not settings.api_key or not settings.model:
+            return LLMReview(
+                enabled=False,
+                provider=settings.provider,
+                model=settings.model,
+                status="not_configured",
+                summary="OpenAI-compatible mode is selected, but OPENAI_BASE_URL, OPENAI_API_KEY, and OPENAI_MODEL must be set.",
+            )
+        return _generate_openai_compatible_review(settings, document_title, executive_summary, claims, timeout_seconds)
+
     if settings.mode != "gemini":
         return LLMReview(
             enabled=False,
             provider=settings.provider,
             model=settings.model,
             status="disabled",
-            summary="This repository currently implements Gemini as the optional non-deterministic reviewer.",
+            summary="Optional LLM mode is disabled. Deterministic scoring remains available.",
         )
 
     if not _has_real_key(settings.api_key) or not settings.model:
@@ -118,6 +134,37 @@ def generate_optional_llm_review(
         )
 
 
+def _generate_openai_compatible_review(
+    settings: LLMSettings,
+    document_title: str,
+    executive_summary: str,
+    claims: list[ClaimAudit],
+    timeout_seconds: int,
+) -> LLMReview:
+    prompt = _build_reviewer_prompt(document_title, executive_summary, claims)
+    try:
+        text = _call_openai_compatible(settings, prompt, timeout_seconds=timeout_seconds)
+        notes = _notes_from_text(text)
+        return LLMReview(
+            enabled=True,
+            provider=settings.provider,
+            model=settings.model,
+            status="completed",
+            summary=notes[0] if notes else text[:500],
+            reviewer_notes=notes,
+            raw_text=text,
+        )
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ValueError) as exc:
+        return LLMReview(
+            enabled=True,
+            provider=settings.provider,
+            model=settings.model,
+            status="error",
+            summary="OpenAI-compatible reviewer failed. The deterministic audit result is still valid.",
+            error=str(exc),
+        )
+
+
 def _call_gemini(settings: LLMSettings, prompt: str, timeout_seconds: int) -> str:
     assert settings.api_key is not None
     assert settings.model is not None
@@ -147,6 +194,47 @@ def _call_gemini(settings: LLMSettings, prompt: str, timeout_seconds: int) -> st
     if not text:
         raise ValueError("Gemini returned no text.")
     return text.strip()
+
+
+def _call_openai_compatible(settings: LLMSettings, prompt: str, timeout_seconds: int) -> str:
+    assert settings.base_url is not None
+    assert settings.api_key is not None
+    assert settings.model is not None
+
+    base_url = settings.base_url.rstrip("/")
+    url = f"{base_url}/chat/completions"
+    payload = {
+        "model": settings.model,
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are a concise responsible-AI document review assistant.",
+            },
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.4,
+        "max_tokens": 700,
+    }
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {settings.api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+        response_payload = json.loads(response.read().decode("utf-8"))
+
+    choices = response_payload.get("choices", [])
+    if not choices:
+        raise ValueError("OpenAI-compatible endpoint returned no choices.")
+
+    text = str(choices[0].get("message", {}).get("content", "")).strip()
+    if not text:
+        raise ValueError("OpenAI-compatible endpoint returned no text.")
+    return text
 
 
 def _build_reviewer_prompt(document_title: str, executive_summary: str, claims: list[ClaimAudit]) -> str:

@@ -19,6 +19,29 @@ Enterprise AI systems increasingly draft policies, reports, contracts, and recom
 
 This repo shows a simple but realistic pattern: deterministic claim extraction, local retrieval, transparent risk scoring, and a human-review dashboard.
 
+## Portfolio Relevance
+
+This project demonstrates responsible enterprise AI beyond a chatbot interface: document-grounded claim review, transparent risk scoring, optional local/hosted LLM reviewer notes, and a human-review workflow that fits consulting, governance, and AI engineering contexts.
+
+## Demo in 3 Minutes
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r backend\requirements.txt
+python -m uvicorn backend.app.main:app --reload --port 8010
+```
+
+In a second terminal:
+
+```powershell
+cd frontend
+npm.cmd install
+npm.cmd run dev
+```
+
+Open `http://127.0.0.1:5173`, select the consulting report sample, and click `Run audit`.
+
 ## Architecture
 
 ```mermaid
@@ -130,9 +153,9 @@ npm.cmd run build
 
 ## Optional LLM Modes
 
-The default mode is deterministic and does not call an LLM. The implemented non-deterministic path is an optional Gemini reviewer that runs after the deterministic audit and adds reviewer notes.
+The default mode is deterministic and does not call an LLM. Optional LLM modes run after the deterministic audit and add reviewer notes; they do not replace the transparent baseline.
 
-To test Gemini with your student key:
+To test Gemini:
 
 ```powershell
 Copy-Item .env.example .env
@@ -151,15 +174,20 @@ Replace `replace-with-your-gemini-api-key` with your real key and restart the ba
 
 The backend uses Google's REST `generateContent` endpoint with the `x-goog-api-key` header. The deterministic audit still runs if Gemini fails or hits a rate limit.
 
-Future OpenAI-compatible settings are present in `.env.example`, but Gemini is the implemented optional LLM path in this version.
+To test LM Studio or another OpenAI-compatible local endpoint:
 
-For reference, the local LLM placeholders are:
+1. Start the LM Studio local server.
+2. Load a chat model.
+3. Set these values in `.env`:
 
 ```env
+LLM_MODE=openai_compatible
 OPENAI_BASE_URL=http://127.0.0.1:1234/v1
 OPENAI_API_KEY=lm-studio
 OPENAI_MODEL=local-model
 ```
+
+Replace `local-model` with the model id shown by LM Studio if needed. Restart the backend after changing `.env`.
 
 ## Sample Workflow
 
@@ -192,8 +220,8 @@ Rendered example outputs from a tiny Gemini-backed run are in [docs/evaluation_r
 
 What each dataset tests:
 
-- FEVER tests whether the auditor assigns lower risk to supported claims than to refuted or not-enough-info claims. This is a lightweight risk-scoring check, not a replacement for a full FEVER retrieval benchmark.
-- CUAD tests long-form contract ingestion, vague-clause detection, risk triage, and evidence snippet display. CUAD is used here as a contract-review stress test, not a hallucination benchmark.
+- FEVER is used as a lightweight risk-score separation sanity check: supported claims should generally receive lower risk than refuted or not-enough-info claims. It is not a full FEVER benchmark.
+- CUAD is used as a long-document and contract-review stress test for ingestion, vague-clause detection, risk triage, and evidence snippets. It is not a hallucination benchmark.
 - The synthetic consulting report remains the default UI demo because it is small, safe to publish, and immediately runnable.
 
 Prepare a small FEVER subset from a local FEVER JSONL file:

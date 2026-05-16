@@ -1,6 +1,6 @@
-# FEVER Gemini Risk Evaluation
+# FEVER Gemini Risk-Score Sanity Check
 
-Small FEVER subset run through the deterministic auditor with optional Gemini reviewer notes.
+Small FEVER subset run through the deterministic auditor with optional Gemini reviewer notes. This is a lightweight risk-score separation sanity check, not a full FEVER benchmark.
 
 - Examples evaluated: 3
 - Supported lower than refuted: False
@@ -26,5 +26,5 @@ Small FEVER subset run through the deterministic auditor with optional Gemini re
 ## Notes
 
 - FEVER is used here to check relative risk behavior across support labels.
-- This is not a full FEVER leaderboard benchmark.
+- This is not a full FEVER benchmark or leaderboard run.
 - Only a small subset should be committed as rendered summary, never the raw dataset.
