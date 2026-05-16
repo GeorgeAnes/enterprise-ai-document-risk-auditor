@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+coverage/
+.vite/
+
+# Environment and local secrets
+.env
+.env.*
+!.env.example
+
+# Local outputs
+exports/
+reports/
+*.log
+
+# Private or large data
+data/private/
+data/raw/
+data/external/
+*.parquet
+*.pkl
+*.pickle
+*.joblib
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

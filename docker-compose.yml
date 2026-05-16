@@ -1,0 +1,24 @@
+services:
+  backend:
+    image: python:3.12-slim
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: sh -c "pip install -r backend/requirements.txt && python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "8010:8000"
+    environment:
+      - LLM_MODE=off
+
+  frontend:
+    image: node:22-slim
+    working_dir: /app/frontend
+    volumes:
+      - .:/app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE_URL=http://127.0.0.1:8010
+    depends_on:
+      - backend
