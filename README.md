@@ -40,7 +40,7 @@ npm.cmd install
 npm.cmd run dev
 ```
 
-Open `http://127.0.0.1:5173`, select the consulting report sample, and click `Run audit`.
+Open `http://127.0.0.1:5173`, select the consulting report sample, and click `Run risk scan`.
 
 ## Architecture
 
@@ -59,7 +59,7 @@ flowchart LR
 
 ## Screenshot
 
-The dashboard is generated locally from synthetic samples.
+The dark risk-intelligence dashboard is generated locally from synthetic samples.
 
 ![Dashboard screenshot](docs/screenshot-dashboard.png)
 
@@ -141,7 +141,10 @@ Frontend:
 cd frontend
 npm.cmd test
 npm.cmd run build
+npm.cmd run test:e2e
 ```
+
+The E2E smoke test serves the production frontend bundle locally and mocks the API responses for UI routing stability. Backend behavior is covered by the Python API tests above.
 
 ## API Summary
 
@@ -193,10 +196,10 @@ Replace `local-model` with the model id shown by LM Studio if needed. Restart th
 
 1. Start the backend and frontend.
 2. Select `Consulting Report Sample`.
-3. Run the audit.
-4. Filter for `Unsupported` or `Needs human review`.
-5. Inspect the retrieved evidence snippets.
-6. Export the Markdown report.
+3. Run the risk scan from `/scan`.
+4. Review the threat overview at `/overview`.
+5. Open a high-risk finding and inspect the retrieved evidence snippets.
+6. Export the Markdown or JSON report.
 
 ## Data Notes
 

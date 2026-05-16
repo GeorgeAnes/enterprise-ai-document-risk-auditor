@@ -7,17 +7,22 @@
     "dev": "vite --configLoader runner --host 127.0.0.1 --port 5173",
     "build": "tsc && vite build --configLoader runner",
     "preview": "vite preview --configLoader runner --host 127.0.0.1 --port 4173",
-    "test": "vitest run --configLoader runner"
+    "preview:e2e": "vite preview --configLoader runner --host 127.0.0.1 --port 5173",
+    "test": "vitest run --configLoader runner",
+    "test:e2e": "npm.cmd run build && node scripts/run-e2e.mjs",
+    "test:e2e:headed": "npm.cmd run build && node scripts/run-e2e.mjs --headed"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.0.0",
-    "vite": "^7.0.0",
-    "typescript": "^5.8.0",
+    "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "lucide-react": "^0.468.0"
+    "react-router-dom": "^7.15.1",
+    "typescript": "^5.8.0",
+    "vite": "^7.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@testing-library/react": "^16.1.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
