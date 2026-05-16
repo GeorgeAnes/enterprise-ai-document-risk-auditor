@@ -27,6 +27,8 @@ reports/
 data/private/
 data/raw/
 data/external/
+data/eval/*
+!data/eval/README.md
 *.parquet
 *.pkl
 *.pickle

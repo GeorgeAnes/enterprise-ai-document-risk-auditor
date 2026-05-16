@@ -8,12 +8,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from starlette.datastructures import UploadFile
 
-from backend.app.core.chunk import chunk_text
-from backend.app.core.claim_extraction import extract_claims
+from backend.app.core.audit_pipeline import run_audit_text
 from backend.app.core.ingest import IngestError, document_from_text, text_from_bytes
-from backend.app.core.report_generation import build_summary, to_markdown_report
-from backend.app.core.retrieval import retrieve_evidence
-from backend.app.core.risk_scoring import score_claims
+from backend.app.core.report_generation import to_markdown_report
 from backend.app.schemas import AuditRequest, AuditResponse, ExportRequest, SampleDocument, SampleInfo
 
 
@@ -78,27 +75,7 @@ async def audit(request: Request) -> AuditResponse:
     try:
         payload = await _parse_audit_request(request)
         document = _resolve_document(payload)
-        evidence_text = payload.evidence_text or ""
-
-        document_chunks = chunk_text(document.text, source="document")
-        evidence_chunks = list(document_chunks)
-        if evidence_text.strip():
-            evidence_document = document_from_text(evidence_text, title="Evidence pack")
-            evidence_chunks.extend(chunk_text(evidence_document.text, source="evidence"))
-
-        claims = extract_claims(document_chunks)
-        evidence_by_claim = retrieve_evidence(claims, evidence_chunks, top_k=3)
-        claim_audits = score_claims(claims, evidence_by_claim)
-        summary = build_summary(document.title, claim_audits)
-
-        response = AuditResponse(
-            document_title=document.title,
-            summary=summary,
-            claims=claim_audits,
-            markdown_report="",
-        )
-        response.markdown_report = to_markdown_report(response)
-        return response
+        return run_audit_text(document.text, evidence_text=payload.evidence_text, title=document.title)
     except IngestError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

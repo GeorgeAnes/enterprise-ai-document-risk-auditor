@@ -34,7 +34,7 @@ flowchart LR
     G --> I["Markdown or JSON report"]
 ```
 
-## Screenshots
+## Screenshot
 
 The dashboard is generated locally from synthetic samples.
 
@@ -47,6 +47,9 @@ enterprise-ai-document-risk-auditor/
   backend/              FastAPI API and deterministic audit pipeline
   frontend/             React/Vite dashboard
   data/samples/         Synthetic sample documents
+  data/eval/            Ignored local evaluation outputs
+  scripts/              Optional FEVER/CUAD preparation and evaluation scripts
+  tests/                Dataset evaluation smoke tests
   docs/                 Architecture, methodology, and dataset notes
   .env.example          Optional LLM/local endpoint configuration
   docker-compose.yml    Optional containerized local run path
@@ -74,7 +77,7 @@ npm.cmd install
 Terminal 1:
 
 ```powershell
-cd "C:\Users\giwrg\OneDrive - TU Eindhoven\Επιφάνεια εργασίας\TUe\github-portfolio\enterprise-ai-document-risk-auditor"
+cd enterprise-ai-document-risk-auditor
 .\.venv\Scripts\Activate.ps1
 python -m uvicorn backend.app.main:app --reload --port 8010
 ```
@@ -82,7 +85,7 @@ python -m uvicorn backend.app.main:app --reload --port 8010
 Terminal 2:
 
 ```powershell
-cd "C:\Users\giwrg\OneDrive - TU Eindhoven\Επιφάνεια εργασίας\TUe\github-portfolio\enterprise-ai-document-risk-auditor\frontend"
+cd enterprise-ai-document-risk-auditor\frontend
 npm.cmd run dev
 ```
 
@@ -99,6 +102,13 @@ Backend:
 ```powershell
 .\.venv\Scripts\Activate.ps1
 pytest backend\tests
+```
+
+All Python tests, including dataset smoke tests:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+pytest
 ```
 
 Frontend:
@@ -145,7 +155,62 @@ For hosted OpenAI-compatible use, set `LLM_MODE=openai` and provide your own key
 
 The included documents are synthetic. They are safe to publish and do not contain client data, private coursework, credentials, or personal information.
 
-Relevant public datasets for future experiments include FEVER, CUAD, and QASPER. They are not downloaded by default, and large datasets should not be committed.
+The default UI demo uses `data/samples/consulting_report_sample.md`. Optional dataset scripts are provided for small local evaluation subsets only. They do not download large datasets automatically, and generated files under `data/eval/` are ignored.
+
+## Optional Dataset Evaluation
+
+Relevant public datasets:
+
+- [FEVER](https://fever.ai/dataset/fever.html): claim verification data with `SUPPORTS`, `REFUTES`, and `NOT ENOUGH INFO` labels.
+- [FEVER paper](https://arxiv.org/abs/1803.05355): background on fact extraction and verification.
+- [CUAD](https://www.atticusprojectai.org/cuad/): contract review dataset from The Atticus Project.
+- [CUAD Zenodo record](https://zenodo.org/records/4595826): archived CUAD v1 dataset package.
+- [CUAD paper](https://arxiv.org/abs/2103.06268): background on expert-annotated legal contract review.
+
+What each dataset tests:
+
+- FEVER tests whether the auditor assigns lower risk to supported claims than to refuted or not-enough-info claims. This is a lightweight risk-scoring check, not a replacement for a full FEVER retrieval benchmark.
+- CUAD tests long-form contract ingestion, vague-clause detection, risk triage, and evidence snippet display. CUAD is used here as a contract-review stress test, not a hallucination benchmark.
+- The synthetic consulting report remains the default UI demo because it is small, safe to publish, and immediately runnable.
+
+Prepare a small FEVER subset from a local FEVER JSONL file:
+
+```powershell
+python scripts\prepare_fever_subset.py `
+  --input data\raw\fever\paper_dev.jsonl `
+  --output data\eval\fever_subset.jsonl `
+  --max-per-label 5
+```
+
+If you have a small local FEVER Wikipedia-pages folder and want to resolve evidence sentence text:
+
+```powershell
+python scripts\prepare_fever_subset.py `
+  --input data\raw\fever\paper_dev.jsonl `
+  --wiki-pages-dir data\raw\fever\wiki-pages `
+  --output data\eval\fever_subset.jsonl `
+  --max-per-label 5
+```
+
+Evaluate relative risk separation:
+
+```powershell
+python scripts\evaluate_fever_risk.py `
+  --input data\eval\fever_subset.jsonl `
+  --output data\eval\fever_eval_summary.json
+```
+
+Prepare and audit a small CUAD contract subset from local `.txt`, `.md`, or JSON files:
+
+```powershell
+python scripts\prepare_cuad_subset.py `
+  --input data\raw\cuad\sample_contracts `
+  --output data\eval\cuad_subset.jsonl `
+  --summary-output data\eval\cuad_audit_summary.json `
+  --max-docs 3
+```
+
+The scripts print JSON summaries to the terminal and write generated outputs under `data/eval/`.
 
 ## Limitations
 
@@ -153,6 +218,8 @@ Relevant public datasets for future experiments include FEVER, CUAD, and QASPER.
 - It can miss implicit support, table-only evidence, and domain-specific nuance.
 - PDF extraction depends on embedded text quality.
 - The optional LLM adapter is intentionally not required for the core workflow.
+- FEVER support checks depend on available evidence text. If only FEVER evidence references are available, the preparation script creates a clearly marked label-aware fallback evidence pack for small calibration tests.
+- CUAD annotations are designed for legal clause extraction and review. This project uses CUAD to stress-test contract ingestion and risk triage, not to measure hallucination detection accuracy.
 
 ## Future Work
 
@@ -160,7 +227,8 @@ Relevant public datasets for future experiments include FEVER, CUAD, and QASPER.
 - Add side-by-side source highlighting.
 - Add structured evidence packs with citation IDs.
 - Add reviewer annotations and saved audit sessions.
-- Add small opt-in dataset preparation scripts for FEVER, CUAD, and QASPER.
+- Add QASPER preparation for evidence-grounded research-paper review.
+- Add richer FEVER evidence resolution over a small local Wikipedia subset.
 
 ## Private Data Warning
 
