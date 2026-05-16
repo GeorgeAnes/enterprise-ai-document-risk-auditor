@@ -4,7 +4,7 @@ import argparse
 import json
 import re
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 from statistics import mean
 from typing import Any
@@ -39,6 +39,9 @@ def evaluate_fever_subset(input_path: str | Path, output_path: str | Path) -> di
                 "risk_score": claim.risk_score if claim else 100,
                 "confidence": claim.confidence if claim else 0.0,
                 "top_evidence_score": claim.evidence[0].score if claim and claim.evidence else 0.0,
+                "llm_review_status": audit.llm_review.status if audit.llm_review else "disabled",
+                "llm_reviewer_notes": audit.llm_review.reviewer_notes if audit.llm_review else [],
+                "llm_summary": audit.llm_review.summary if audit.llm_review else None,
             }
         )
 
@@ -61,6 +64,7 @@ def evaluate_fever_subset(input_path: str | Path, output_path: str | Path) -> di
         "average_risk_by_label": average_risk_by_label,
         "supported_lower_than_refuted": supports_risk is not None and refutes_risk is not None and supports_risk < refutes_risk,
         "supported_lower_than_not_enough_info": supports_risk is not None and nei_risk is not None and supports_risk < nei_risk,
+        "llm_review_status_counts": dict(Counter(result["llm_review_status"] for result in results)),
         "results": results,
     }
 

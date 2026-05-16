@@ -18,7 +18,6 @@ def prepare_fever_subset(
 ) -> dict[str, Any]:
     input_path = Path(input_path)
     output_path = Path(output_path)
-    wiki_lookup = _load_wiki_sentence_lookup(wiki_pages_dir) if wiki_pages_dir else {}
     selected_by_label: dict[str, list[dict[str, Any]]] = defaultdict(list)
     source_count = 0
 
@@ -33,17 +32,14 @@ def prepare_fever_subset(
             continue
 
         evidence_refs = flatten_fever_evidence(record.get("evidence"))
-        evidence_texts = extract_evidence_texts(record, evidence_refs, wiki_lookup)
-        evidence_pack, fallback_used = build_evidence_pack(claim, label, evidence_refs, evidence_texts)
         selected_by_label[label].append(
             {
                 "id": str(record.get("id", f"fever-{source_count}")),
                 "claim": claim,
                 "label": label,
+                "source_record": record,
                 "document": build_test_document(claim, label),
-                "evidence_pack": evidence_pack,
                 "evidence_refs": evidence_refs,
-                "used_label_aware_fallback": fallback_used,
             }
         )
 
@@ -51,17 +47,36 @@ def prepare_fever_subset(
             break
 
     examples = [item for label in LABELS for item in selected_by_label[label]]
+    wiki_lookup = resolve_needed_wiki_sentences(wiki_pages_dir, examples) if wiki_pages_dir else {}
+    finalized_examples = []
+    for example in examples:
+        evidence_texts = extract_evidence_texts(example["source_record"], example["evidence_refs"], wiki_lookup)
+        evidence_pack, fallback_used = build_evidence_pack(
+            example["claim"],
+            example["label"],
+            example["evidence_refs"],
+            evidence_texts,
+        )
+        finalized = {
+            key: value
+            for key, value in example.items()
+            if key != "source_record"
+        }
+        finalized["evidence_pack"] = evidence_pack
+        finalized["used_label_aware_fallback"] = fallback_used
+        finalized_examples.append(finalized)
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as handle:
-        for example in examples:
+        for example in finalized_examples:
             handle.write(json.dumps(example, ensure_ascii=False) + "\n")
 
     summary = {
         "source_records_read": source_count,
         "output_path": str(output_path),
-        "examples_written": len(examples),
-        "label_counts": dict(Counter(example["label"] for example in examples)),
-        "fallback_evidence_examples": sum(1 for example in examples if example["used_label_aware_fallback"]),
+        "examples_written": len(finalized_examples),
+        "label_counts": dict(Counter(example["label"] for example in finalized_examples)),
+        "fallback_evidence_examples": sum(1 for example in finalized_examples if example["used_label_aware_fallback"]),
     }
     print(json.dumps(summary, indent=2))
     return summary
@@ -178,24 +193,41 @@ def _read_json_records(input_path: Path) -> list[dict[str, Any]]:
     raise ValueError("Expected FEVER input as JSONL, JSON list, or JSON object with a data list.")
 
 
-def _load_wiki_sentence_lookup(wiki_pages_dir: str | Path | None) -> dict[tuple[str, str], str]:
+def resolve_needed_wiki_sentences(
+    wiki_pages_dir: str | Path | None,
+    examples: list[dict[str, Any]],
+) -> dict[tuple[str, str], str]:
     if not wiki_pages_dir:
         return {}
 
+    needed = {
+        (ref["page"], ref["sentence_id"])
+        for example in examples
+        for ref in example["evidence_refs"]
+    }
+    if not needed:
+        return {}
+
     root = Path(wiki_pages_dir)
+    jsonl_files = list(root.rglob("*.jsonl"))
     lookup: dict[tuple[str, str], str] = {}
-    for path in root.rglob("*.jsonl"):
+
+    for path in jsonl_files:
         with path.open("r", encoding="utf-8") as handle:
             for line in handle:
                 if not line.strip():
                     continue
                 page = json.loads(line)
                 page_id = str(page.get("id", ""))
+                if page_id not in {page_name for page_name, _ in needed}:
+                    continue
                 lines = str(page.get("lines", "")).splitlines()
                 for raw_line in lines:
                     parts = raw_line.split("\t")
-                    if len(parts) >= 2:
+                    if len(parts) >= 2 and (page_id, parts[0]) in needed:
                         lookup[(page_id, parts[0])] = parts[1]
+                if needed.issubset(lookup.keys()):
+                    return lookup
     return lookup
 
 

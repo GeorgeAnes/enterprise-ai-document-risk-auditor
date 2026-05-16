@@ -42,6 +42,7 @@ Dataset scripts:
 - `scripts/prepare_fever_subset.py`
 - `scripts/evaluate_fever_risk.py`
 - `scripts/prepare_cuad_subset.py`
+- `scripts/render_eval_reports.py`
 
 ## Gemini Setup
 
@@ -108,3 +109,4 @@ https://github.com/GeorgeAnes/enterprise-ai-document-risk-auditor.git
 - Tests mock LLM calls.
 - Keep README commands portable; avoid absolute local OneDrive paths.
 - If adding screenshots, save small useful images under `docs/`.
+- If uploading dataset results, commit only rendered summaries under `docs/evaluation_results/`; do not commit raw datasets or full generated JSON.

@@ -188,6 +188,8 @@ Relevant public datasets:
 
 Detailed download commands are in [docs/download_datasets.md](docs/download_datasets.md).
 
+Rendered example outputs from a tiny Gemini-backed run are in [docs/evaluation_results](docs/evaluation_results/README.md).
+
 What each dataset tests:
 
 - FEVER tests whether the auditor assigns lower risk to supported claims than to refuted or not-enough-info claims. This is a lightweight risk-scoring check, not a replacement for a full FEVER retrieval benchmark.

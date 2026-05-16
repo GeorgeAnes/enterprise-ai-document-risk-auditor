@@ -59,6 +59,9 @@ def prepare_cuad_subset(
                 "title": record["title"],
                 "total_claims": audit.summary.total_claims,
                 "overall_risk_score": audit.summary.overall_risk_score,
+                "llm_review_status": audit.llm_review.status if audit.llm_review else "disabled",
+                "llm_reviewer_notes": audit.llm_review.reviewer_notes if audit.llm_review else [],
+                "llm_summary": audit.llm_review.summary if audit.llm_review else None,
                 "high_risk_findings": high_risk[:10],
             }
         )
