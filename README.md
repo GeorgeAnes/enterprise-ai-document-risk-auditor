@@ -207,6 +207,14 @@ python -m uvicorn backend.app.main:app --reload --port 8010
 5. Open a high-risk finding and inspect the retrieved evidence snippets.
 6. Export the Markdown or JSON report.
 
+## Drag-And-Drop Demo
+
+The `/scan` screen accepts one primary document at a time. Drag a `.txt`, `.md`, `.markdown`, or text-based `.pdf` file into the primary document drop zone, then click `Run risk scan`.
+
+For optional grounding material, drag a `.txt`, `.md`, `.csv`, `.json`, or `.jsonl` text file into the evidence pack zone. The app uses this as extra retrieval material.
+
+Downloaded FEVER and CUAD datasets are optional evaluation data, not required for the normal UI demo. For CUAD, the easiest UI demo is to drag one contract `.txt` file from `full_contract_txt` into the primary document drop zone. Do not drag a whole dataset folder or zip file into the app.
+
 ## Data Notes
 
 The included documents are synthetic. They are safe to publish and do not contain client data, private coursework, credentials, or personal information.

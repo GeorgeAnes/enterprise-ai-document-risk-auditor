@@ -1,12 +1,13 @@
 import { spawn } from "node:child_process";
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer } from "node:http";
+import { createServer as createNetServer } from "node:net";
 import { dirname, extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const distDir = join(root, "dist");
-const port = Number(process.env.E2E_PORT ?? 5173);
+const port = await findAvailablePort(Number(process.env.E2E_PORT ?? 5173));
 
 if (!existsSync(join(distDir, "index.html"))) {
   console.error("Missing frontend/dist/index.html. Run npm.cmd run build before E2E tests.");
@@ -37,7 +38,10 @@ server.listen(port, "127.0.0.1", () => {
   const args = [playwrightCli, "test", ...process.argv.slice(2)];
   const child = spawn(process.execPath, args, {
     cwd: root,
-    env: process.env,
+    env: {
+      ...process.env,
+      E2E_BASE_URL: `http://127.0.0.1:${port}`
+    },
     stdio: "inherit"
   });
 
@@ -71,4 +75,19 @@ function contentType(filePath) {
     default:
       return "application/octet-stream";
   }
+}
+
+function findAvailablePort(startPort) {
+  return new Promise((resolvePort) => {
+    function tryPort(candidate) {
+      const probe = createNetServer();
+      probe.once("error", () => tryPort(candidate + 1));
+      probe.once("listening", () => {
+        probe.close(() => resolvePort(candidate));
+      });
+      probe.listen(candidate, "127.0.0.1");
+    }
+
+    tryPort(startPort);
+  });
 }
