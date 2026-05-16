@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { Activity, DatabaseZap, ShieldAlert } from "lucide-react";
 import TopNav from "./TopNav";
 import RouteBreadcrumbs from "./RouteBreadcrumbs";
+import BackendStatusPanel from "./BackendStatusPanel";
 import { useAudit } from "../context/AuditContext";
 
 interface RiskCommandShellProps {
@@ -10,9 +11,17 @@ interface RiskCommandShellProps {
 }
 
 function RiskCommandShell({ children }: RiskCommandShellProps) {
-  const { audit, riskBand, loading } = useAudit();
+  const { audit, riskBand, loading, backendStatus } = useAudit();
   const location = useLocation();
   const isScan = location.pathname === "/scan";
+  const statusText =
+    backendStatus === "offline"
+      ? "Backend offline"
+      : loading
+        ? "Scanning corpus"
+        : audit
+          ? `${riskBand} risk posture`
+          : "Ready for ingestion";
 
   return (
     <div className="command-shell">
@@ -27,8 +36,8 @@ function RiskCommandShell({ children }: RiskCommandShellProps) {
           </div>
         </div>
         <div className="system-status" aria-live="polite">
-          <span className={loading ? "signal-dot active" : "signal-dot"} />
-          <span>{loading ? "Scanning corpus" : audit ? `${riskBand} risk posture` : "Ready for ingestion"}</span>
+          <span className={`signal-dot ${loading ? "active" : ""} ${backendStatus}`} />
+          <span>{statusText}</span>
         </div>
       </header>
 
@@ -45,6 +54,7 @@ function RiskCommandShell({ children }: RiskCommandShellProps) {
             <span>Backend contract</span>
             <strong>FastAPI /audit</strong>
           </div>
+          <BackendStatusPanel />
         </aside>
 
         <main className={`screen-stage ${isScan ? "scan-stage" : ""}`}>

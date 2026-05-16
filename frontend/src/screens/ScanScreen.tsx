@@ -9,8 +9,9 @@ import ScanReadinessChecklist from "../components/ScanReadinessChecklist";
 
 function ScanScreen() {
   const navigate = useNavigate();
-  const { documentText, file, loading, error, runAudit, clearError } = useAudit();
+  const { documentText, file, loading, error, backendStatus, backendMessage, runAudit, clearError } = useAudit();
   const canScan = Boolean(file || documentText.trim());
+  const disabledReason = canScan ? "" : "Load a sample, paste document text, or upload a file to enable the scan.";
 
   async function handleScan() {
     clearError();
@@ -30,11 +31,25 @@ function ScanScreen() {
             Load a safe sample, upload a document, or paste source text. The scan runs locally against the existing
             deterministic audit pipeline.
           </p>
+          {disabledReason && <p className="inline-hint">{disabledReason}</p>}
+          {backendStatus === "offline" && <p className="inline-hint warning">{backendMessage}</p>}
         </div>
-        <button className="scan-cta" type="button" onClick={() => void handleScan()} disabled={!canScan || loading}>
+        <button
+          aria-describedby={!canScan ? "scan-disabled-reason" : undefined}
+          className="scan-cta"
+          type="button"
+          onClick={() => void handleScan()}
+          disabled={!canScan || loading}
+          title={disabledReason || undefined}
+        >
           <Play size={18} />
           <span>{loading ? "Scanning document" : "Run risk scan"}</span>
         </button>
+        {!canScan && (
+          <span className="sr-only" id="scan-disabled-reason">
+            {disabledReason}
+          </span>
+        )}
       </section>
 
       <div className="scan-grid">

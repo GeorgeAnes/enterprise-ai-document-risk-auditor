@@ -1,6 +1,64 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
+
+test("scan screen shows helpful backend-offline state and fallback text", async ({ page }) => {
+  await mockOfflineApi(page);
+
+  await page.goto("/scan");
+
+  await expect(page.getByRole("alert").getByText("Backend unavailable. Start FastAPI with:")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Fallback Consulting Report Sample" })).toBeVisible();
+  await expect(page.getByText("Backend samples could not be loaded")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Run risk scan/i })).toBeEnabled();
+
+  await page.getByRole("link", { name: /Overview/i }).click();
+  await expect(page).toHaveURL(/\/overview/);
+  await expect(page.getByText("Run a scan first to unlock overview and deep dive.")).toBeVisible();
+});
 
 test("sample document audit moves from scan to overview to finding deep dive", async ({ page }) => {
+  await mockOnlineApi(page);
+
+  await page.goto("/scan");
+
+  await expect(page.getByRole("heading", { name: "Load a controlled document" })).toBeVisible();
+  await expect(page.getByText("Backend online")).toBeVisible();
+  await expect(page.getByText("FastAPI backend is reachable for audit execution")).toBeVisible();
+
+  const scanButton = page.getByRole("button", { name: /Run risk scan/i });
+  await expect(scanButton).toBeEnabled();
+  await scanButton.click();
+
+  await page.waitForURL("**/overview");
+  await expect(page.getByText("Risk posture", { exact: true })).toBeVisible();
+  await expect(page.getByText("Support distribution")).toBeVisible();
+  await expect(page.getByText("Top risks")).toBeVisible();
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: /Markdown report/i }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("audit-report.md");
+
+  await page.getByRole("link", { name: /Inspect highest risk/i }).click();
+  await expect(page).toHaveURL(/\/findings\/C001/);
+  await expect(page.getByText("Why this claim is flagged")).toBeVisible();
+  await expect(page.getByText("Grounding snippets")).toBeVisible();
+  await expect(page.getByText("Document context")).toBeVisible();
+});
+
+async function mockOfflineApi(page: Page) {
+  await page.route("http://127.0.0.1:8010/**", async (route) => {
+    await route.abort("failed");
+  });
+}
+
+async function mockOnlineApi(page: Page) {
+  await page.route("http://127.0.0.1:8010/health", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ status: "ok" })
+    });
+  });
+
   await page.route("http://127.0.0.1:8010/samples", async (route) => {
     await route.fulfill({
       contentType: "application/json",
@@ -101,23 +159,4 @@ test("sample document audit moves from scan to overview to finding deep dive", a
       })
     });
   });
-
-  await page.goto("/scan");
-
-  await expect(page.getByRole("heading", { name: "Load a controlled document" })).toBeVisible();
-  const scanButton = page.getByRole("button", { name: /Run risk scan/i });
-  await expect(scanButton).toBeEnabled();
-  await scanButton.click();
-
-  await page.waitForURL("**/overview");
-  await expect(page.getByText("Risk posture", { exact: true })).toBeVisible();
-  await expect(page.getByText("Support distribution")).toBeVisible();
-  await expect(page.getByText("Top risks")).toBeVisible();
-  await expect(page.getByRole("button", { name: /Markdown report/i })).toBeVisible();
-
-  await page.locator(".risk-card").first().click();
-  await expect(page).toHaveURL(/\/findings\//);
-  await expect(page.getByText("Why this claim is flagged")).toBeVisible();
-  await expect(page.getByText("Grounding snippets")).toBeVisible();
-  await expect(page.getByText("Document context")).toBeVisible();
-});
+}

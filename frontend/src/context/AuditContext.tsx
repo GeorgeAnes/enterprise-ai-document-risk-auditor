@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { auditDocument, fetchSample, fetchSamples } from "../api";
+import { BACKEND_UNAVAILABLE_MESSAGE, auditDocument, checkHealth, fetchSample, fetchSamples } from "../api";
+import { FALLBACK_SAMPLE, FALLBACK_SAMPLES, fallbackSampleById } from "../data/fallbackSamples";
 import type { AuditResponse, ClaimAudit, SampleInfo } from "../types";
 
 interface AuditContextValue {
@@ -13,6 +14,9 @@ interface AuditContextValue {
   selectedClaimId: string;
   loading: boolean;
   error: string | null;
+  backendStatus: BackendStatus;
+  backendMessage: string;
+  usingFallbackSample: boolean;
   highestRiskClaims: ClaimAudit[];
   selectedClaim: ClaimAudit | null;
   riskBand: RiskBand;
@@ -33,6 +37,7 @@ export interface CategoryRow {
 }
 
 export type RiskBand = "Nominal" | "Elevated" | "High" | "Critical";
+export type BackendStatus = "checking" | "online" | "offline";
 
 const AuditContext = createContext<AuditContextValue | null>(null);
 
@@ -47,16 +52,12 @@ export function AuditProvider({ children }: { children: ReactNode }) {
   const [selectedClaimId, setSelectedClaimId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [backendStatus, setBackendStatus] = useState<BackendStatus>("checking");
+  const [backendMessage, setBackendMessage] = useState("Checking FastAPI backend...");
+  const [usingFallbackSample, setUsingFallbackSample] = useState(false);
 
   useEffect(() => {
-    fetchSamples()
-      .then(async (sampleList) => {
-        setSamples(sampleList);
-        if (sampleList[0]) {
-          await loadSampleById(sampleList[0].id);
-        }
-      })
-      .catch((err: Error) => setError(err.message));
+    void bootstrapSamples();
   }, []);
 
   const highestRiskClaims = useMemo(() => {
@@ -90,9 +91,62 @@ export function AuditProvider({ children }: { children: ReactNode }) {
     setError(null);
     setActiveSampleId(sampleId);
     setFile(null);
-    const sample = await fetchSample(sampleId);
-    setDocumentTitle(sample.title);
-    setDocumentTextState(sample.content);
+
+    const fallbackSample = fallbackSampleById(sampleId);
+    if (fallbackSample) {
+      applySample(fallbackSample.title, fallbackSample.content);
+      setUsingFallbackSample(true);
+      return;
+    }
+
+    try {
+      const sample = await fetchSample(sampleId);
+      setUsingFallbackSample(false);
+      applySample(sample.title, sample.content);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : BACKEND_UNAVAILABLE_MESSAGE;
+      setError(message);
+      setBackendStatus("offline");
+      setBackendMessage(BACKEND_UNAVAILABLE_MESSAGE);
+      loadFallbackSample();
+    }
+  }
+
+  async function bootstrapSamples() {
+    setBackendStatus("checking");
+    setBackendMessage("Checking FastAPI backend...");
+    try {
+      await checkHealth();
+      setBackendStatus("online");
+      setBackendMessage("FastAPI backend connected on port 8010.");
+
+      const sampleList = await fetchSamples();
+      const nextSamples = sampleList.length > 0 ? sampleList : FALLBACK_SAMPLES;
+      setSamples(nextSamples);
+      if (sampleList[0]) {
+        await loadSampleById(sampleList[0].id);
+      } else {
+        loadFallbackSample();
+      }
+    } catch (err) {
+      setBackendStatus("offline");
+      setBackendMessage(BACKEND_UNAVAILABLE_MESSAGE);
+      setError(BACKEND_UNAVAILABLE_MESSAGE);
+      setSamples(FALLBACK_SAMPLES);
+      loadFallbackSample();
+    }
+  }
+
+  function loadFallbackSample() {
+    setActiveSampleId(FALLBACK_SAMPLE.id);
+    setFile(null);
+    setUsingFallbackSample(true);
+    applySample(FALLBACK_SAMPLE.title, FALLBACK_SAMPLE.content);
+  }
+
+  function applySample(title: string, content: string) {
+    setDocumentTitle(title);
+    setDocumentTextState(content);
     setAudit(null);
     setSelectedClaimId("");
   }
@@ -102,6 +156,8 @@ export function AuditProvider({ children }: { children: ReactNode }) {
     setActiveSampleId("");
     setDocumentTitle("pasted-document.md");
     setDocumentTextState(value);
+    setAudit(null);
+    setSelectedClaimId("");
   }
 
   function setInputFile(nextFile: File | null) {
@@ -109,6 +165,8 @@ export function AuditProvider({ children }: { children: ReactNode }) {
     if (nextFile) {
       setActiveSampleId("");
       setDocumentTitle(nextFile.name);
+      setAudit(null);
+      setSelectedClaimId("");
     }
   }
 
@@ -124,9 +182,16 @@ export function AuditProvider({ children }: { children: ReactNode }) {
       });
       setAudit(result);
       setSelectedClaimId(result.claims[0]?.id ?? "");
+      setBackendStatus("online");
+      setBackendMessage("FastAPI backend connected on port 8010.");
       return result;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Audit failed.");
+      const message = err instanceof Error ? err.message : "Audit failed.";
+      setError(message);
+      if (message.includes("Backend unavailable")) {
+        setBackendStatus("offline");
+        setBackendMessage(BACKEND_UNAVAILABLE_MESSAGE);
+      }
       return null;
     } finally {
       setLoading(false);
@@ -144,6 +209,9 @@ export function AuditProvider({ children }: { children: ReactNode }) {
     selectedClaimId,
     loading,
     error,
+    backendStatus,
+    backendMessage,
+    usingFallbackSample,
     highestRiskClaims,
     selectedClaim,
     riskBand,

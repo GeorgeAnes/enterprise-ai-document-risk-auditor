@@ -2,7 +2,7 @@ import { FileText } from "lucide-react";
 import { useAudit } from "../context/AuditContext";
 
 function SampleSelector() {
-  const { samples, activeSampleId, loadSample } = useAudit();
+  const { samples, activeSampleId, usingFallbackSample, loadSample } = useAudit();
 
   return (
     <section className="glass-panel">
@@ -13,6 +13,12 @@ function SampleSelector() {
           <h2>Load a controlled document</h2>
         </div>
       </div>
+      {usingFallbackSample && (
+        <p className="panel-note">
+          Backend samples could not be loaded, so the frontend fallback sample is active. Start FastAPI to run the real
+          backend demo.
+        </p>
+      )}
       <div className="sample-grid">
         {samples.map((sample) => (
           <button

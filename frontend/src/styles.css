@@ -166,6 +166,16 @@ h2 {
   animation: pulse 1.4s ease-in-out infinite;
 }
 
+.signal-dot.offline {
+  background: var(--red);
+  box-shadow: 0 0 16px rgba(251, 113, 133, 0.42);
+}
+
+.signal-dot.checking {
+  background: var(--amber);
+  box-shadow: 0 0 16px rgba(251, 191, 36, 0.42);
+}
+
 .shell-grid {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
@@ -184,6 +194,7 @@ h2 {
 
 .top-nav,
 .rail-card,
+.backend-status-card,
 .glass-panel,
 .hero-panel,
 .overview-hero,
@@ -222,24 +233,60 @@ h2 {
   background: var(--cyan-soft);
 }
 
-.top-nav a.disabled-link {
-  opacity: 0.5;
+.top-nav a.locked-link {
+  color: var(--dim);
+  background: rgba(8, 14, 27, 0.52);
 }
 
-.rail-card {
+.top-nav a.locked-link small {
+  margin-left: auto;
+  color: var(--amber);
+  font-size: 0.68rem;
+  font-weight: 820;
+}
+
+.rail-card,
+.backend-status-card {
   display: grid;
   gap: 6px;
   padding: 14px;
   color: var(--muted);
 }
 
-.rail-card svg {
+.rail-card svg,
+.backend-status-card svg {
   color: var(--purple);
 }
 
 .rail-card strong {
   color: var(--text);
   font-size: 0.92rem;
+}
+
+.backend-status-card.online {
+  border-color: rgba(74, 222, 128, 0.22);
+}
+
+.backend-status-card.offline {
+  border-color: rgba(251, 113, 133, 0.3);
+  background: rgba(127, 29, 29, 0.14);
+}
+
+.backend-status-card.checking {
+  border-color: rgba(251, 191, 36, 0.28);
+}
+
+.backend-status-card p,
+.backend-status-card small,
+.panel-note,
+.inline-hint {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.backend-status-card small,
+.panel-note {
+  font-size: 0.78rem;
 }
 
 .screen-stage {
@@ -303,6 +350,25 @@ h2 {
   white-space: nowrap;
 }
 
+.scan-cta:disabled {
+  color: var(--dim);
+  background: rgba(71, 85, 105, 0.42);
+}
+
+.inline-hint {
+  max-width: 780px;
+  margin-top: 8px;
+  font-size: 0.86rem;
+}
+
+.inline-hint.warning {
+  color: #ffd9df;
+}
+
+.panel-note {
+  margin: -4px 0 13px;
+}
+
 .scan-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.08fr) minmax(340px, 0.92fr);
@@ -325,6 +391,14 @@ h2 {
 .panel-title {
   gap: 11px;
   margin-bottom: 14px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-weight: 820;
 }
 
 .panel-title.compact {
@@ -523,6 +597,10 @@ a:focus-visible {
   color: var(--green);
 }
 
+.readiness-panel li.warning svg {
+  color: var(--amber);
+}
+
 .error-banner {
   display: flex;
   gap: 10px;
@@ -532,6 +610,41 @@ a:focus-visible {
   padding: 12px;
   color: #ffd9df;
   background: rgba(127, 29, 29, 0.22);
+}
+
+.locked-panel {
+  min-height: 420px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 14px;
+  text-align: center;
+}
+
+.locked-panel svg {
+  color: var(--amber);
+}
+
+.locked-panel h2,
+.locked-panel p {
+  max-width: 620px;
+}
+
+.locked-panel p:not(.eyebrow) {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .overview-hero {

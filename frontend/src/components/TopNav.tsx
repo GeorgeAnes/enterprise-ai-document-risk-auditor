@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { FileScan, LayoutDashboard, SearchCode } from "lucide-react";
+import { FileScan, LayoutDashboard, LockKeyhole, SearchCode } from "lucide-react";
 import { useAudit } from "../context/AuditContext";
 
 function TopNav() {
@@ -12,13 +12,23 @@ function TopNav() {
         <FileScan size={17} />
         <span>Ingestion</span>
       </NavLink>
-      <NavLink to="/overview" className={!audit ? "disabled-link" : undefined}>
-        <LayoutDashboard size={17} />
+      <NavLink
+        to="/overview"
+        className={!audit ? "locked-link" : undefined}
+        title={!audit ? "Run a scan first to unlock overview and deep dive." : undefined}
+      >
+        {!audit ? <LockKeyhole size={17} /> : <LayoutDashboard size={17} />}
         <span>Overview</span>
+        {!audit && <small>Run scan first</small>}
       </NavLink>
-      <NavLink to={findingPath} className={!audit ? "disabled-link" : undefined}>
-        <SearchCode size={17} />
+      <NavLink
+        to={findingPath}
+        className={!audit ? "locked-link" : undefined}
+        title={!audit ? "Run a scan first to unlock overview and deep dive." : undefined}
+      >
+        {!audit ? <LockKeyhole size={17} /> : <SearchCode size={17} />}
         <span>Deep dive</span>
+        {!audit && <small>Locked</small>}
       </NavLink>
     </nav>
   );

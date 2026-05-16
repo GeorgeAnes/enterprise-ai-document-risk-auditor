@@ -180,17 +180,23 @@ The backend uses Google's REST `generateContent` endpoint with the `x-goog-api-k
 To test LM Studio or another OpenAI-compatible local endpoint:
 
 1. Start the LM Studio local server.
-2. Load a chat model.
+2. Load `google/gemma-4-e4b` or another chat model.
 3. Set these values in `.env`:
 
 ```env
 LLM_MODE=openai_compatible
 OPENAI_BASE_URL=http://127.0.0.1:1234/v1
 OPENAI_API_KEY=lm-studio
-OPENAI_MODEL=local-model
+OPENAI_MODEL=google/gemma-4-e4b
 ```
 
-Replace `local-model` with the model id shown by LM Studio if needed. Restart the backend after changing `.env`.
+If LM Studio shows a different model id, replace `google/gemma-4-e4b` with that exact value. Restart the backend after changing `.env`. The LLM reviewer is optional and only adds reviewer notes; the deterministic audit and UI flow still work without it.
+
+If the scan page says the backend is unavailable, start FastAPI from the repository root:
+
+```powershell
+python -m uvicorn backend.app.main:app --reload --port 8010
+```
 
 ## Sample Workflow
 

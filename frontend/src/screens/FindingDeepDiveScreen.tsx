@@ -6,13 +6,14 @@ import EvidenceSnippetStack from "../components/EvidenceSnippetStack";
 import RiskFactorChips from "../components/RiskFactorChips";
 import DocumentContextPanel from "../components/DocumentContextPanel";
 import FindingNavigator from "../components/FindingNavigator";
+import LockedRoutePanel from "../components/LockedRoutePanel";
 
 function FindingDeepDiveScreen() {
   const { claimId } = useParams();
   const { audit, documentText, highestRiskClaims } = useAudit();
 
   if (!audit) {
-    return <Navigate to="/scan" replace />;
+    return <LockedRoutePanel viewName="Deep dive" />;
   }
 
   const selected = audit.claims.find((claim) => claim.id === claimId) ?? highestRiskClaims[0] ?? audit.claims[0];

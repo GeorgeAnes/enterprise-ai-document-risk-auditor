@@ -2,7 +2,7 @@ import { UploadCloud } from "lucide-react";
 import { useAudit } from "../context/AuditContext";
 
 function DocumentDropzone() {
-  const { documentText, documentTitle, file, setDocumentText, setInputFile } = useAudit();
+  const { documentText, documentTitle, file, usingFallbackSample, setDocumentText, setInputFile } = useAudit();
 
   return (
     <section className="glass-panel document-panel">
@@ -13,6 +13,7 @@ function DocumentDropzone() {
           <h2>{documentTitle || "Document payload"}</h2>
         </div>
       </div>
+      {usingFallbackSample && <p className="panel-note">Synthetic fallback content is loaded for local UI testing.</p>}
       <label className="dropzone">
         <input
           accept=".txt,.md,.markdown,.pdf"

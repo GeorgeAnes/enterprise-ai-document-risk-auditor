@@ -1,4 +1,4 @@
-import { Link, Navigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { ArrowRight, ShieldAlert } from "lucide-react";
 import { useAudit } from "../context/AuditContext";
 import RiskScoreRing from "../components/RiskScoreRing";
@@ -8,12 +8,13 @@ import ExecutiveBriefingPanel from "../components/ExecutiveBriefingPanel";
 import ReviewChecklistPanel from "../components/ReviewChecklistPanel";
 import ExportDock from "../components/ExportDock";
 import LLMReviewPanel from "../components/LLMReviewPanel";
+import LockedRoutePanel from "../components/LockedRoutePanel";
 
 function ThreatOverviewScreen() {
   const { audit, riskBand, categoryRows, highestRiskClaims } = useAudit();
 
   if (!audit) {
-    return <Navigate to="/scan" replace />;
+    return <LockedRoutePanel viewName="Threat overview" />;
   }
 
   return (
