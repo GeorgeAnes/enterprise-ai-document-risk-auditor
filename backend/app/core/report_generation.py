@@ -88,5 +88,10 @@ def to_markdown_report(response: AuditResponse) -> str:
 
     lines.extend(["", "## Review Checklist"])
     lines.extend(f"- {item}" for item in response.summary.review_checklist)
+
+    if response.llm_review and response.llm_review.status == "completed":
+        lines.extend(["", "## Optional Gemini Reviewer Notes"])
+        lines.extend(f"- {item}" for item in response.llm_review.reviewer_notes)
+
     lines.append("")
     return "\n".join(lines)

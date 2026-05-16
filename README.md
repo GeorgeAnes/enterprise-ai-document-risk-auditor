@@ -51,6 +51,7 @@ enterprise-ai-document-risk-auditor/
   scripts/              Optional FEVER/CUAD preparation and evaluation scripts
   tests/                Dataset evaluation smoke tests
   docs/                 Architecture, methodology, and dataset notes
+  AGENTS.md             Agent handoff notes for future development
   .env.example          Optional LLM/local endpoint configuration
   docker-compose.yml    Optional containerized local run path
 ```
@@ -129,18 +130,36 @@ npm.cmd run build
 
 ## Optional LLM Modes
 
-The default mode is deterministic and does not call an LLM.
+The default mode is deterministic and does not call an LLM. The implemented non-deterministic path is an optional Gemini reviewer that runs after the deterministic audit and adds reviewer notes.
 
-For LM Studio or another OpenAI-compatible local endpoint:
+To test Gemini with your student key:
+
+```powershell
+Copy-Item .env.example .env
+notepad .env
+```
+
+Then change:
 
 ```env
-LLM_MODE=openai_compatible
+LLM_MODE=gemini
+GEMINI_API_KEY=replace-with-your-gemini-api-key
+GEMINI_MODEL=gemini-2.5-flash-lite
+```
+
+Replace `replace-with-your-gemini-api-key` with your real key and restart the backend.
+
+The backend uses Google's REST `generateContent` endpoint with the `x-goog-api-key` header. The deterministic audit still runs if Gemini fails or hits a rate limit.
+
+Future OpenAI-compatible settings are present in `.env.example`, but Gemini is the implemented optional LLM path in this version.
+
+For reference, the local LLM placeholders are:
+
+```env
 OPENAI_BASE_URL=http://127.0.0.1:1234/v1
 OPENAI_API_KEY=lm-studio
 OPENAI_MODEL=local-model
 ```
-
-For hosted OpenAI-compatible use, set `LLM_MODE=openai` and provide your own key in a local `.env` file. Do not commit real keys.
 
 ## Sample Workflow
 
@@ -166,6 +185,8 @@ Relevant public datasets:
 - [CUAD](https://www.atticusprojectai.org/cuad/): contract review dataset from The Atticus Project.
 - [CUAD Zenodo record](https://zenodo.org/records/4595826): archived CUAD v1 dataset package.
 - [CUAD paper](https://arxiv.org/abs/2103.06268): background on expert-annotated legal contract review.
+
+Detailed download commands are in [docs/download_datasets.md](docs/download_datasets.md).
 
 What each dataset tests:
 

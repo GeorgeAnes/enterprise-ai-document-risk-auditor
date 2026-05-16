@@ -341,6 +341,44 @@ select:focus {
   padding: 18px 0;
 }
 
+.llm-panel {
+  background: #fbfcfa;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: #34473f;
+  display: grid;
+  gap: 8px;
+  line-height: 1.5;
+  margin: 0 0 18px;
+  padding: 14px;
+}
+
+.llm-panel.completed {
+  border-color: #9fd4c5;
+  background: #f0f8f5;
+}
+
+.llm-panel.error {
+  border-color: #efb3aa;
+  background: #fff7f5;
+}
+
+.llm-panel.not_configured {
+  border-color: #dec88d;
+  background: #fffaf0;
+}
+
+.llm-panel ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.llm-meta {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 720;
+}
+
 .executive-band p:not(.eyebrow),
 .executive-band li {
   color: #34473f;

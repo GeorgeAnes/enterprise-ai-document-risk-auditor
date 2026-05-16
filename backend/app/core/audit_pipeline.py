@@ -3,6 +3,7 @@ from __future__ import annotations
 from backend.app.core.chunk import chunk_text
 from backend.app.core.claim_extraction import extract_claims
 from backend.app.core.ingest import document_from_text, normalize_text
+from backend.app.core.llm_provider import generate_optional_llm_review
 from backend.app.core.report_generation import build_summary, to_markdown_report
 from backend.app.core.retrieval import retrieve_evidence
 from backend.app.core.risk_scoring import score_claims
@@ -30,5 +31,6 @@ def run_audit_text(text: str, evidence_text: str | None = None, title: str = "Do
         claims=claim_audits,
         markdown_report="",
     )
+    response.llm_review = generate_optional_llm_review(document.title, summary.executive_summary, claim_audits)
     response.markdown_report = to_markdown_report(response)
     return response

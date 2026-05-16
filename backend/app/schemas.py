@@ -61,11 +61,23 @@ class AuditSummary(BaseModel):
     review_checklist: list[str]
 
 
+class LLMReview(BaseModel):
+    enabled: bool
+    provider: str
+    model: str | None = None
+    status: Literal["disabled", "not_configured", "completed", "error"]
+    summary: str | None = None
+    reviewer_notes: list[str] = Field(default_factory=list)
+    raw_text: str | None = None
+    error: str | None = None
+
+
 class AuditResponse(BaseModel):
     document_title: str
     summary: AuditSummary
     claims: list[ClaimAudit]
     markdown_report: str
+    llm_review: LLMReview | None = None
 
 
 class ExportRequest(BaseModel):

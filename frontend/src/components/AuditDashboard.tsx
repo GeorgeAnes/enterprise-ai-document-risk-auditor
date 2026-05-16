@@ -1,6 +1,7 @@
 import type { AuditResponse, ClaimAudit, LabelFilter } from "../types";
 import ClaimTable from "./ClaimTable";
 import EvidencePanel from "./EvidencePanel";
+import LLMReviewPanel from "./LLMReviewPanel";
 import ReportExport from "./ReportExport";
 import SummaryCards from "./SummaryCards";
 
@@ -49,6 +50,8 @@ function AuditDashboard({
       </div>
 
       <SummaryCards summary={audit.summary} />
+
+      <LLMReviewPanel review={audit.llm_review} />
 
       <section className="executive-band">
         <div>

@@ -45,11 +45,23 @@ export interface AuditSummary {
   review_checklist: string[];
 }
 
+export interface LLMReview {
+  enabled: boolean;
+  provider: string;
+  model?: string | null;
+  status: "disabled" | "not_configured" | "completed" | "error";
+  summary?: string | null;
+  reviewer_notes: string[];
+  raw_text?: string | null;
+  error?: string | null;
+}
+
 export interface AuditResponse {
   document_title: string;
   summary: AuditSummary;
   claims: ClaimAudit[];
   markdown_report: string;
+  llm_review?: LLMReview | null;
 }
 
 export type LabelFilter = SupportLabel | "All";

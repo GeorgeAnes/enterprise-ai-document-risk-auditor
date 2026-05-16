@@ -26,3 +26,5 @@ Do not commit full public datasets, private evidence packs, or client documents 
 - `scripts/prepare_cuad_subset.py`: loads a few local CUAD-style contracts and writes a compact audit summary with high-risk clauses and evidence snippets.
 
 CUAD is a contract-review stress test in this project. It is not treated as a hallucination benchmark.
+
+Dataset download commands are documented in `docs/download_datasets.md`.
