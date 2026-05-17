@@ -40,6 +40,17 @@ class EvidenceSnippet(BaseModel):
     heading: str | None = None
 
 
+class ClaimLLMReview(BaseModel):
+    claim_id: str
+    reviewer_status: Literal["completed", "fallback_text", "unavailable", "disabled"]
+    reviewer_note: str | None = None
+    suggested_rewrite: str | None = None
+    missing_evidence_questions: list[str] = Field(default_factory=list)
+    business_impact: str | None = None
+    human_review_priority: Literal["Low", "Medium", "High", "Critical"] = "Medium"
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
 class ClaimAudit(BaseModel):
     id: str
     text: str
@@ -50,6 +61,7 @@ class ClaimAudit(BaseModel):
     explanation: str
     factors: list[str]
     evidence: list[EvidenceSnippet]
+    llm_review: ClaimLLMReview | None = None
 
 
 class AuditSummary(BaseModel):
@@ -65,7 +77,7 @@ class LLMReview(BaseModel):
     enabled: bool
     provider: str
     model: str | None = None
-    status: Literal["disabled", "not_configured", "completed", "error"]
+    status: Literal["disabled", "not_configured", "completed", "error", "unavailable"]
     summary: str | None = None
     reviewer_notes: list[str] = Field(default_factory=list)
     raw_text: str | None = None

@@ -34,6 +34,18 @@ export interface ClaimAudit {
   explanation: string;
   factors: string[];
   evidence: EvidenceSnippet[];
+  llm_review?: ClaimLLMReview | null;
+}
+
+export interface ClaimLLMReview {
+  claim_id: string;
+  reviewer_status: "completed" | "fallback_text" | "unavailable" | "disabled";
+  reviewer_note?: string | null;
+  suggested_rewrite?: string | null;
+  missing_evidence_questions: string[];
+  business_impact?: string | null;
+  human_review_priority: "Low" | "Medium" | "High" | "Critical";
+  confidence: number;
 }
 
 export interface AuditSummary {
@@ -49,7 +61,7 @@ export interface LLMReview {
   enabled: boolean;
   provider: string;
   model?: string | null;
-  status: "disabled" | "not_configured" | "completed" | "error";
+  status: "disabled" | "not_configured" | "completed" | "error" | "unavailable";
   summary?: string | null;
   reviewer_notes: string[];
   raw_text?: string | null;

@@ -86,11 +86,25 @@ def to_markdown_report(response: AuditResponse) -> str:
         else:
             lines.append("- No evidence retrieved.")
 
+        if claim.llm_review:
+            lines.extend(["", "**Local reviewer:**"])
+            if claim.llm_review.reviewer_note:
+                lines.append(f"- Note: {claim.llm_review.reviewer_note}")
+            if claim.llm_review.suggested_rewrite:
+                lines.append(f"- Suggested rewrite: {claim.llm_review.suggested_rewrite}")
+            if claim.llm_review.business_impact:
+                lines.append(f"- Business impact: {claim.llm_review.business_impact}")
+            if claim.llm_review.missing_evidence_questions:
+                lines.append("- Missing evidence questions:")
+                lines.extend(f"  - {question}" for question in claim.llm_review.missing_evidence_questions)
+
     lines.extend(["", "## Review Checklist"])
     lines.extend(f"- {item}" for item in response.summary.review_checklist)
 
     if response.llm_review and response.llm_review.status == "completed":
-        lines.extend(["", "## Optional Gemini Reviewer Notes"])
+        lines.extend(["", "## Local Reviewer Summary"])
+        if response.llm_review.summary:
+            lines.append(response.llm_review.summary)
         lines.extend(f"- {item}" for item in response.llm_review.reviewer_notes)
 
     lines.append("")

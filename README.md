@@ -10,6 +10,7 @@ This project is built as a responsible-AI and consulting-tech portfolio repo. It
 - Retrieves supporting passages from the same document or an optional evidence pack.
 - Classifies each claim as `Supported`, `Weakly supported`, `Unsupported`, `Vague / non-verifiable`, or `Needs human review`.
 - Produces a risk score, explanation, evidence snippets, executive summary, and review checklist.
+- Optionally adds structured local Gemma reviewer notes for the top risky claims through LM Studio.
 - Exports the audit as Markdown or JSON.
 - Runs locally without paid API keys.
 
@@ -17,11 +18,11 @@ This project is built as a responsible-AI and consulting-tech portfolio repo. It
 
 Enterprise AI systems increasingly draft policies, reports, contracts, and recommendations. The risk is not just whether the text sounds fluent. The risk is whether important claims are grounded in evidence, scoped correctly, and safe for a human reviewer to approve.
 
-This repo shows a simple but realistic pattern: deterministic claim extraction, local retrieval, transparent risk scoring, and a human-review dashboard.
+This repo shows a simple but realistic pattern: deterministic claim extraction, local retrieval, transparent risk scoring, and a local LLM reviewer layer for human-review support.
 
 ## Portfolio Relevance
 
-This project demonstrates responsible enterprise AI beyond a chatbot interface: document-grounded claim review, transparent risk scoring, optional local/hosted LLM reviewer notes, and a human-review workflow that fits consulting, governance, and AI engineering contexts.
+This project demonstrates responsible enterprise AI beyond a chatbot interface: document-grounded claim review, transparent risk scoring, optional local Gemma reviewer notes, and a human-review workflow that fits consulting, governance, and AI engineering contexts.
 
 ## Demo in 3 Minutes
 
@@ -53,9 +54,14 @@ flowchart LR
     D --> F["Retrieve evidence"]
     E --> F
     F --> G["Risk scoring"]
-    G --> H["React dashboard"]
-    G --> I["Markdown or JSON report"]
+    G --> H["Top risky claims"]
+    H --> I["Optional local Gemma reviewer"]
+    G --> J["React review cockpit"]
+    I --> J
+    J --> K["Markdown or JSON report"]
 ```
+
+The deterministic pipeline is the auditable baseline: ingestion, chunking, claim extraction, TF-IDF retrieval, risk scoring, labels, and exports are reproducible and do not require an LLM. The local Gemma reviewer is an interpretive layer: it reviews the top risky claims after scoring and adds notes, safer rewrites, missing-evidence questions, and business impact. If LM Studio is unavailable, the deterministic audit still completes.
 
 ## Screenshot
 
@@ -154,11 +160,29 @@ The E2E smoke test serves the production frontend bundle locally and mocks the A
 - `POST /audit`: audit pasted text or uploaded `.md`, `.txt`, or `.pdf` content.
 - `POST /export`: export an audit result as Markdown or JSON.
 
-## Optional LLM Modes
+## Local Gemma Reviewer Setup
 
-The default mode is deterministic and does not call an LLM. Optional LLM modes run after the deterministic audit and add reviewer notes; they do not replace the transparent baseline.
+The default mode is deterministic and does not call an LLM. For the strongest local demo, use LM Studio with an OpenAI-compatible endpoint. The reviewer runs after the deterministic audit and only adds structured notes to the top risky claims.
 
-To test Gemini:
+1. Start the LM Studio local server.
+2. Load `google/gemma-4-e4b` or another chat model.
+3. Copy `.env.example` to `.env`.
+4. Set:
+
+```env
+LLM_MODE=openai_compatible
+OPENAI_BASE_URL=http://127.0.0.1:1234/v1
+OPENAI_API_KEY=lm-studio
+OPENAI_MODEL=google/gemma-4-e4b
+```
+
+If LM Studio shows a different model id, replace `google/gemma-4-e4b` with that exact value. Restart the backend after changing `.env`.
+
+The local reviewer is optional. It does not decide the score, label, or evidence retrieval, and the scan does not fail if LM Studio is closed.
+
+## Other Optional LLM Modes
+
+Gemini is still supported as a secondary experimental reviewer mode, but LM Studio/OpenAI-compatible mode is the recommended local portfolio demo path.
 
 ```powershell
 Copy-Item .env.example .env
@@ -176,21 +200,6 @@ GEMINI_MODEL=gemini-2.5-flash-lite
 Replace `replace-with-your-gemini-api-key` with your real key and restart the backend.
 
 The backend uses Google's REST `generateContent` endpoint with the `x-goog-api-key` header. The deterministic audit still runs if Gemini fails or hits a rate limit.
-
-To test LM Studio or another OpenAI-compatible local endpoint:
-
-1. Start the LM Studio local server.
-2. Load `google/gemma-4-e4b` or another chat model.
-3. Set these values in `.env`:
-
-```env
-LLM_MODE=openai_compatible
-OPENAI_BASE_URL=http://127.0.0.1:1234/v1
-OPENAI_API_KEY=lm-studio
-OPENAI_MODEL=google/gemma-4-e4b
-```
-
-If LM Studio shows a different model id, replace `google/gemma-4-e4b` with that exact value. Restart the backend after changing `.env`. The LLM reviewer is optional and only adds reviewer notes; the deterministic audit and UI flow still work without it.
 
 If the scan page says the backend is unavailable, start FastAPI from the repository root:
 

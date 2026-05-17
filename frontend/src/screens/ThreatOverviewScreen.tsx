@@ -41,7 +41,7 @@ function ThreatOverviewScreen() {
       <div className="overview-grid asym">
         <TopRiskStack claims={highestRiskClaims} />
         <div className="overview-side-stack">
-          <LLMReviewPanel review={audit.llm_review} />
+          <LLMReviewPanel review={audit.llm_review} claims={audit.claims} />
           <ReviewChecklistPanel items={audit.summary.review_checklist} />
         </div>
       </div>

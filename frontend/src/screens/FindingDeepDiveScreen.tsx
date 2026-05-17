@@ -7,6 +7,7 @@ import RiskFactorChips from "../components/RiskFactorChips";
 import DocumentContextPanel from "../components/DocumentContextPanel";
 import FindingNavigator from "../components/FindingNavigator";
 import LockedRoutePanel from "../components/LockedRoutePanel";
+import ClaimLLMReviewPanel from "../components/ClaimLLMReviewPanel";
 
 function FindingDeepDiveScreen() {
   const { claimId } = useParams();
@@ -49,6 +50,7 @@ function FindingDeepDiveScreen() {
               <strong>{selected.source_chunk_id}</strong>
             </div>
           </section>
+          <ClaimLLMReviewPanel review={selected.llm_review} />
           <EvidenceSnippetStack evidence={selected.evidence} />
           <DocumentContextPanel documentText={documentText} claim={selected} />
         </div>

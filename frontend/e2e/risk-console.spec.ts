@@ -32,6 +32,7 @@ test("sample document audit moves from scan to overview to finding deep dive", a
   await expect(page.getByText("Risk posture", { exact: true })).toBeVisible();
   await expect(page.getByText("Support distribution")).toBeVisible();
   await expect(page.getByText("Top risks")).toBeVisible();
+  await expect(page.getByText("Gemma reviewer completed", { exact: true })).toBeVisible();
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: /Markdown report/i }).click();
@@ -41,6 +42,8 @@ test("sample document audit moves from scan to overview to finding deep dive", a
   await page.getByRole("link", { name: /Inspect highest risk/i }).click();
   await expect(page).toHaveURL(/\/findings\/C001/);
   await expect(page.getByText("Why this claim is flagged")).toBeVisible();
+  await expect(page.getByText("Local Gemma reviewer")).toBeVisible();
+  await expect(page.getByText("Suggested safer rewrite")).toBeVisible();
   await expect(page.getByText("Grounding snippets")).toBeVisible();
   await expect(page.getByText("Document context")).toBeVisible();
 });
@@ -127,7 +130,17 @@ async function mockOnlineApi(page: Page) {
                 score: 0.34,
                 heading: "Pilot evidence"
               }
-            ]
+            ],
+            llm_review: {
+              claim_id: "C001",
+              reviewer_status: "completed",
+              reviewer_note: "The claim is too absolute for the retrieved evidence.",
+              suggested_rewrite: "The pilot suggests manual rework may decrease within the tested teams.",
+              missing_evidence_questions: ["Which teams were in scope?", "Is there post-pilot validation?"],
+              business_impact: "Overstating automation benefits can mislead rollout decisions.",
+              human_review_priority: "High",
+              confidence: 0.82
+            }
           },
           {
             id: "C002",
@@ -151,10 +164,12 @@ async function mockOnlineApi(page: Page) {
         ],
         markdown_report: "# Consulting Report Sample\n\nOne high-risk claim needs evidence and human review.",
         llm_review: {
-          enabled: false,
-          provider: "none",
-          status: "disabled",
-          reviewer_notes: []
+          enabled: true,
+          provider: "openai_compatible",
+          model: "google/gemma-4-e4b",
+          status: "completed",
+          summary: "Gemma reviewer completed structured notes for 1 claim(s).",
+          reviewer_notes: ["The claim is too absolute for the retrieved evidence."]
         }
       })
     });

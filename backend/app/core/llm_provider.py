@@ -6,7 +6,9 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 
-from backend.app.schemas import ClaimAudit, LLMReview
+from pydantic import BaseModel, Field, ValidationError
+
+from backend.app.schemas import ClaimAudit, ClaimLLMReview, LLMReview
 
 try:
     from dotenv import load_dotenv
@@ -22,6 +24,7 @@ PLACEHOLDER_VALUES = {
     "paste-your-gemini-api-key-here",
     "replace-with-your-openai-compatible-key",
 }
+MAX_REVIEWED_CLAIMS = 5
 
 
 @dataclass(frozen=True)
@@ -79,7 +82,12 @@ def generate_optional_llm_review(
 ) -> LLMReview:
     settings = load_llm_settings()
     if settings.mode == "off":
-        return LLMReview(enabled=False, provider="none", status="disabled")
+        return LLMReview(
+            enabled=False,
+            provider="none",
+            status="disabled",
+            summary="Local reviewer disabled. Deterministic audit remains available.",
+        )
 
     if settings.mode in {"openai_compatible", "openai"}:
         if not settings.base_url or not settings.api_key or not settings.model:
@@ -88,9 +96,9 @@ def generate_optional_llm_review(
                 provider=settings.provider,
                 model=settings.model,
                 status="not_configured",
-                summary="OpenAI-compatible mode is selected, but OPENAI_BASE_URL, OPENAI_API_KEY, and OPENAI_MODEL must be set.",
+                summary="Local reviewer unavailable. Deterministic audit remains available.",
             )
-        return _generate_openai_compatible_review(settings, document_title, executive_summary, claims, timeout_seconds)
+        return _generate_structured_claim_reviews(settings, document_title, executive_summary, claims, timeout_seconds)
 
     if settings.mode != "gemini":
         return LLMReview(
@@ -98,7 +106,7 @@ def generate_optional_llm_review(
             provider=settings.provider,
             model=settings.model,
             status="disabled",
-            summary="Optional LLM mode is disabled. Deterministic scoring remains available.",
+            summary="Local reviewer disabled. Deterministic audit remains available.",
         )
 
     if not _has_real_key(settings.api_key) or not settings.model:
@@ -107,62 +115,72 @@ def generate_optional_llm_review(
             provider="gemini",
             model=settings.model,
             status="not_configured",
-            summary="Gemini mode is selected, but GEMINI_API_KEY still needs to be set to a real key.",
+            summary="Local reviewer unavailable. Deterministic audit remains available.",
         )
 
-    prompt = _build_reviewer_prompt(document_title, executive_summary, claims)
-    try:
-        text = _call_gemini(settings, prompt, timeout_seconds=timeout_seconds)
-        notes = _notes_from_text(text)
-        return LLMReview(
-            enabled=True,
-            provider="gemini",
-            model=settings.model,
-            status="completed",
-            summary=notes[0] if notes else text[:500],
-            reviewer_notes=notes,
-            raw_text=text,
-        )
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ValueError) as exc:
-        return LLMReview(
-            enabled=True,
-            provider="gemini",
-            model=settings.model,
-            status="error",
-            summary="Gemini reviewer failed. The deterministic audit result is still valid.",
-            error=str(exc),
-        )
+    return _generate_structured_claim_reviews(settings, document_title, executive_summary, claims, timeout_seconds)
 
 
-def _generate_openai_compatible_review(
+def _generate_structured_claim_reviews(
     settings: LLMSettings,
     document_title: str,
     executive_summary: str,
     claims: list[ClaimAudit],
     timeout_seconds: int,
 ) -> LLMReview:
-    prompt = _build_reviewer_prompt(document_title, executive_summary, claims)
-    try:
-        text = _call_openai_compatible(settings, prompt, timeout_seconds=timeout_seconds)
-        notes = _notes_from_text(text)
+    review_targets = sorted(claims, key=lambda claim: claim.risk_score, reverse=True)[:MAX_REVIEWED_CLAIMS]
+    if not review_targets:
         return LLMReview(
             enabled=True,
             provider=settings.provider,
             model=settings.model,
             status="completed",
-            summary=notes[0] if notes else text[:500],
-            reviewer_notes=notes,
-            raw_text=text,
+            summary="No high-risk claims were available for local reviewer notes.",
         )
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ValueError) as exc:
-        return LLMReview(
-            enabled=True,
-            provider=settings.provider,
-            model=settings.model,
-            status="error",
-            summary="OpenAI-compatible reviewer failed. The deterministic audit result is still valid.",
-            error=str(exc),
-        )
+
+    reviewer_notes: list[str] = []
+    completed = 0
+    fallback_count = 0
+
+    for claim in review_targets:
+        prompt = _build_claim_review_prompt(document_title, executive_summary, claim)
+        try:
+            text = _call_provider(settings, prompt, timeout_seconds=timeout_seconds)
+        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ValueError):
+            return LLMReview(
+                enabled=True,
+                provider=settings.provider,
+                model=settings.model,
+                status="unavailable",
+                summary="Local reviewer unavailable. Deterministic audit remains available.",
+            )
+
+        review = _parse_claim_review(claim, text)
+        claim.llm_review = review
+        reviewer_notes.append(review.reviewer_note or f"{claim.id}: local reviewer returned no note.")
+        if review.reviewer_status == "completed":
+            completed += 1
+        else:
+            fallback_count += 1
+
+    summary = f"Gemma reviewer completed structured notes for {completed} claim(s)."
+    if fallback_count:
+        summary += f" {fallback_count} claim(s) used fallback text because structured JSON was unavailable."
+
+    return LLMReview(
+        enabled=True,
+        provider=settings.provider,
+        model=settings.model,
+        status="completed",
+        summary=summary,
+        reviewer_notes=reviewer_notes[:5],
+    )
+
+
+def _call_provider(settings: LLMSettings, prompt: str, timeout_seconds: int) -> str:
+    if settings.provider == "gemini":
+        return _call_gemini(settings, prompt, timeout_seconds=timeout_seconds)
+    return _call_openai_compatible(settings, prompt, timeout_seconds=timeout_seconds)
 
 
 def _call_gemini(settings: LLMSettings, prompt: str, timeout_seconds: int) -> str:
@@ -208,7 +226,7 @@ def _call_openai_compatible(settings: LLMSettings, prompt: str, timeout_seconds:
         "messages": [
             {
                 "role": "system",
-                "content": "You are a concise responsible-AI document review assistant.",
+                "content": "You are a concise responsible-AI document review assistant. Return only valid JSON.",
             },
             {"role": "user", "content": prompt},
         ],
@@ -237,35 +255,111 @@ def _call_openai_compatible(settings: LLMSettings, prompt: str, timeout_seconds:
     return text
 
 
-def _build_reviewer_prompt(document_title: str, executive_summary: str, claims: list[ClaimAudit]) -> str:
-    high_risk = sorted(claims, key=lambda claim: claim.risk_score, reverse=True)[:8]
-    claim_lines = []
-    for claim in high_risk:
-        evidence = claim.evidence[0].text if claim.evidence else "No retrieved evidence."
-        claim_lines.append(
-            f"- {claim.id} | {claim.label} | risk={claim.risk_score}: {claim.text}\n"
-            f"  Evidence: {evidence}\n"
-            f"  Deterministic reason: {claim.explanation}"
-        )
-
+def _build_claim_review_prompt(document_title: str, executive_summary: str, claim: ClaimAudit) -> str:
+    evidence_lines = []
+    for evidence in claim.evidence[:3]:
+        evidence_lines.append(f"- {evidence.chunk_id} | score={evidence.score:.2f} | {evidence.text}")
+    evidence_text = "\n".join(evidence_lines) if evidence_lines else "No retrieved evidence."
     return (
         "You are a responsible-AI document review assistant. "
-        "Do not decide legal truth. Give a concise second opinion on the deterministic audit.\n\n"
+        "Do not decide legal truth and do not invent evidence. "
+        "Review the deterministic audit output and return only a JSON object with this exact shape:\n"
+        "{\n"
+        '  "claim_id": "string",\n'
+        '  "reviewer_status": "completed",\n'
+        '  "reviewer_note": "1-2 sentence note",\n'
+        '  "suggested_rewrite": "safer scoped rewrite or null",\n'
+        '  "missing_evidence_questions": ["question 1", "question 2"],\n'
+        '  "business_impact": "why this matters for an enterprise reviewer",\n'
+        '  "human_review_priority": "Low|Medium|High|Critical",\n'
+        '  "confidence": 0.0\n'
+        "}\n\n"
         f"Document title: {document_title}\n"
         f"Deterministic executive summary: {executive_summary}\n\n"
-        "High-risk claims:\n"
-        + "\n".join(claim_lines)
-        + "\n\nReturn 3-5 short reviewer notes. Focus on evidence gaps, vague claims, and human-review priorities."
+        f"Claim id: {claim.id}\n"
+        f"Claim text: {claim.text}\n"
+        f"Deterministic label: {claim.label}\n"
+        f"Risk score: {claim.risk_score}/100\n"
+        f"Deterministic explanation: {claim.explanation}\n"
+        f"Deterministic factors: {', '.join(claim.factors)}\n\n"
+        f"Retrieved evidence:\n{evidence_text}\n\n"
+        "Focus on evidence gaps, safer wording, business risk, and human-review priority."
     )
 
 
-def _notes_from_text(text: str) -> list[str]:
-    lines = []
-    for raw_line in text.splitlines():
-        cleaned = raw_line.strip().lstrip("-*0123456789. ").strip()
-        if cleaned:
-            lines.append(cleaned)
-    return lines[:5] or [text.strip()]
+class _ClaimReviewPayload(BaseModel):
+    claim_id: str
+    reviewer_status: str = "completed"
+    reviewer_note: str | None = None
+    suggested_rewrite: str | None = None
+    missing_evidence_questions: list[str] = Field(default_factory=list)
+    business_impact: str | None = None
+    human_review_priority: str = "Medium"
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+def _parse_claim_review(claim: ClaimAudit, text: str) -> ClaimLLMReview:
+    try:
+        payload = _ClaimReviewPayload.model_validate_json(_extract_json_object(text))
+        return ClaimLLMReview(
+            claim_id=claim.id,
+            reviewer_status="completed",
+            reviewer_note=payload.reviewer_note,
+            suggested_rewrite=payload.suggested_rewrite,
+            missing_evidence_questions=payload.missing_evidence_questions[:4],
+            business_impact=payload.business_impact,
+            human_review_priority=_normalize_priority(payload.human_review_priority, claim.risk_score),
+            confidence=payload.confidence,
+        )
+    except (ValidationError, ValueError, json.JSONDecodeError):
+        return ClaimLLMReview(
+            claim_id=claim.id,
+            reviewer_status="fallback_text",
+            reviewer_note=_fallback_note(text),
+            suggested_rewrite=None,
+            missing_evidence_questions=[],
+            business_impact="Structured local reviewer output was unavailable; use the deterministic explanation and retrieved evidence for review.",
+            human_review_priority=_priority_from_score(claim.risk_score),
+            confidence=0.0,
+        )
+
+
+def _extract_json_object(text: str) -> str:
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.strip("`").strip()
+        if cleaned.lower().startswith("json"):
+            cleaned = cleaned[4:].strip()
+
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        raise ValueError("No JSON object found in reviewer response.")
+    return cleaned[start : end + 1]
+
+
+def _fallback_note(text: str) -> str:
+    cleaned = " ".join(text.strip().split())
+    if not cleaned:
+        return "Local reviewer returned unstructured output. Deterministic audit remains available."
+    return cleaned[:700]
+
+
+def _normalize_priority(value: str, score: int) -> str:
+    normalized = value.strip().title()
+    if normalized in {"Low", "Medium", "High", "Critical"}:
+        return normalized
+    return _priority_from_score(score)
+
+
+def _priority_from_score(score: int) -> str:
+    if score >= 85:
+        return "Critical"
+    if score >= 65:
+        return "High"
+    if score >= 35:
+        return "Medium"
+    return "Low"
 
 
 def _has_real_key(value: str | None) -> bool:
