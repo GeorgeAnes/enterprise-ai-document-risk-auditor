@@ -23,7 +23,7 @@ def test_openai_compatible_structured_claim_review(monkeypatch):
 
     def fake_call(settings, prompt, timeout_seconds):
         assert settings.provider == "openai_compatible"
-        assert "return only a JSON object" in prompt
+        assert "Return compact JSON only" in prompt
         return """
         {
           "claim_id": "C001",
@@ -63,6 +63,41 @@ def test_malformed_llm_json_falls_back_to_text(monkeypatch):
     assert claim.llm_review is not None
     assert claim.llm_review.reviewer_status == "fallback_text"
     assert claim.llm_review.reviewer_note == "plain note"
+
+
+def test_fenced_json_with_loose_fields_is_coerced(monkeypatch):
+    monkeypatch.setenv("LLM_MODE", "openai_compatible")
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://127.0.0.1:1234/v1")
+    monkeypatch.setenv("OPENAI_API_KEY", "lm-studio")
+    monkeypatch.setenv("OPENAI_MODEL", "google/gemma-4-e4b")
+
+    def fake_call(settings, prompt, timeout_seconds):
+        return """
+        ```json
+        {
+          "claim_id": "C001",
+          "reviewer_status": "completed",
+          "reviewer_note": "The wording is broader than the available pilot evidence.",
+          "suggested_rewrite": "null",
+          "missing_evidence_questions": "Was the pilot representative? Was compliance review completed?",
+          "business_impact": "Unsupported certainty can distort governance decisions.",
+          "human_review_priority": "critical",
+          "confidence": 85
+        }
+        ```
+        """
+
+    monkeypatch.setattr(llm_provider, "_call_openai_compatible", fake_call)
+    claim = _claim()
+    review = llm_provider.generate_optional_llm_review("Demo", "Summary", [claim])
+
+    assert review.status == "completed"
+    assert claim.llm_review is not None
+    assert claim.llm_review.reviewer_status == "completed"
+    assert claim.llm_review.suggested_rewrite is None
+    assert claim.llm_review.human_review_priority == "Critical"
+    assert claim.llm_review.confidence == 0.85
+    assert len(claim.llm_review.missing_evidence_questions) == 2
 
 
 def test_openai_compatible_unavailable_does_not_crash(monkeypatch):

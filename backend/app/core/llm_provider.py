@@ -6,8 +6,6 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 
-from pydantic import BaseModel, Field, ValidationError
-
 from backend.app.schemas import ClaimAudit, ClaimLLMReview, LLMReview
 
 try:
@@ -226,12 +224,15 @@ def _call_openai_compatible(settings: LLMSettings, prompt: str, timeout_seconds:
         "messages": [
             {
                 "role": "system",
-                "content": "You are a concise responsible-AI document review assistant. Return only valid JSON.",
+                "content": (
+                    "You are a concise responsible-AI document reviewer. Return only compact valid JSON. "
+                    "No markdown. Keep string values short. Do not quote claim words inside string values."
+                ),
             },
             {"role": "user", "content": prompt},
         ],
-        "temperature": 0.4,
-        "max_tokens": 700,
+        "temperature": 0.1,
+        "max_tokens": 500,
     }
     request = urllib.request.Request(
         url,
@@ -262,18 +263,13 @@ def _build_claim_review_prompt(document_title: str, executive_summary: str, clai
     evidence_text = "\n".join(evidence_lines) if evidence_lines else "No retrieved evidence."
     return (
         "You are a responsible-AI document review assistant. "
-        "Do not decide legal truth and do not invent evidence. "
-        "Review the deterministic audit output and return only a JSON object with this exact shape:\n"
-        "{\n"
-        '  "claim_id": "string",\n'
-        '  "reviewer_status": "completed",\n'
-        '  "reviewer_note": "1-2 sentence note",\n'
-        '  "suggested_rewrite": "safer scoped rewrite or null",\n'
-        '  "missing_evidence_questions": ["question 1", "question 2"],\n'
-        '  "business_impact": "why this matters for an enterprise reviewer",\n'
-        '  "human_review_priority": "Low|Medium|High|Critical",\n'
-        '  "confidence": 0.0\n'
-        "}\n\n"
+        "Do not decide legal truth and do not invent evidence. Return compact JSON only, no markdown. "
+        "Use short strings. Avoid quotation marks inside string values. "
+        "Use this exact JSON shape: "
+        '{"claim_id":"string","reviewer_status":"completed","reviewer_note":"short note",'
+        '"suggested_rewrite":"safer scoped rewrite or null","missing_evidence_questions":["question"],'
+        '"business_impact":"short business risk","human_review_priority":"Low|Medium|High|Critical","confidence":0.0}'
+        "\n\n"
         f"Document title: {document_title}\n"
         f"Deterministic executive summary: {executive_summary}\n\n"
         f"Claim id: {claim.id}\n"
@@ -283,35 +279,27 @@ def _build_claim_review_prompt(document_title: str, executive_summary: str, clai
         f"Deterministic explanation: {claim.explanation}\n"
         f"Deterministic factors: {', '.join(claim.factors)}\n\n"
         f"Retrieved evidence:\n{evidence_text}\n\n"
-        "Focus on evidence gaps, safer wording, business risk, and human-review priority."
+        "Focus on evidence gaps, safer wording, business risk, and human-review priority. "
+        "Keep the full JSON under 180 words."
     )
-
-
-class _ClaimReviewPayload(BaseModel):
-    claim_id: str
-    reviewer_status: str = "completed"
-    reviewer_note: str | None = None
-    suggested_rewrite: str | None = None
-    missing_evidence_questions: list[str] = Field(default_factory=list)
-    business_impact: str | None = None
-    human_review_priority: str = "Medium"
-    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
 def _parse_claim_review(claim: ClaimAudit, text: str) -> ClaimLLMReview:
     try:
-        payload = _ClaimReviewPayload.model_validate_json(_extract_json_object(text))
+        payload = json.loads(_extract_json_object(text))
+        if not isinstance(payload, dict):
+            raise ValueError("Reviewer response was not a JSON object.")
         return ClaimLLMReview(
             claim_id=claim.id,
             reviewer_status="completed",
-            reviewer_note=payload.reviewer_note,
-            suggested_rewrite=payload.suggested_rewrite,
-            missing_evidence_questions=payload.missing_evidence_questions[:4],
-            business_impact=payload.business_impact,
-            human_review_priority=_normalize_priority(payload.human_review_priority, claim.risk_score),
-            confidence=payload.confidence,
+            reviewer_note=_optional_text(payload.get("reviewer_note")),
+            suggested_rewrite=_optional_text(payload.get("suggested_rewrite")),
+            missing_evidence_questions=_coerce_questions(payload.get("missing_evidence_questions"))[:4],
+            business_impact=_optional_text(payload.get("business_impact")),
+            human_review_priority=_normalize_priority(str(payload.get("human_review_priority", "")), claim.risk_score),
+            confidence=_normalize_confidence(payload.get("confidence")),
         )
-    except (ValidationError, ValueError, json.JSONDecodeError):
+    except (TypeError, ValueError, json.JSONDecodeError):
         return ClaimLLMReview(
             claim_id=claim.id,
             reviewer_status="fallback_text",
@@ -336,6 +324,38 @@ def _extract_json_object(text: str) -> str:
     if start == -1 or end == -1 or end <= start:
         raise ValueError("No JSON object found in reviewer response.")
     return cleaned[start : end + 1]
+
+
+def _optional_text(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text or text.lower() in {"null", "none", "n/a"}:
+        return None
+    return text
+
+
+def _coerce_questions(value: object) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [question for item in value if (question := _optional_text(item))]
+    text = _optional_text(value)
+    if not text:
+        return []
+    parts = [part.strip() for part in text.replace(";", "?").split("?")]
+    questions = [f"{part}?" for part in parts if part]
+    return questions or [text]
+
+
+def _normalize_confidence(value: object) -> float:
+    try:
+        confidence = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    if confidence > 1.0 and confidence <= 100.0:
+        confidence = confidence / 100.0
+    return max(0.0, min(1.0, confidence))
 
 
 def _fallback_note(text: str) -> str:
