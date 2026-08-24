@@ -64,7 +64,7 @@ Phase 6 — Verification, Resilience, Docs
 - [ ] Task 3: Resource group + shared scaffolding
 - [ ] Task 4: Backend CORS becomes configurable
 - [ ] Task 5: Backend Dockerfile
-- [ ] Task 6: Build and publish image to GHCR
+- [x] Task 6: Build and publish image to GHCR — done; `ae2696f` published public, unauthenticated pull verified end-to-end. GHCR write needs a **classic** PAT (fine-grained PATs fail); package pushed private by default and had to be flipped to public
 
 ### Checkpoint: End of Phase 1
 - [ ] `pytest` passes (incl. new CORS tests)

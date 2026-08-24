@@ -138,18 +138,28 @@ Standing instruction for every task that writes a `.tf` file: invoke `full-outpu
 
 ---
 
-### Task 6: Build and publish backend image to GHCR
+### Task 6: Build and publish backend image to GHCR ✅ DONE
 
 **Description:** Build with a git-short-SHA tag (`git rev-parse --short HEAD`) — not `latest`, since Container Apps only rolls a new revision when the Terraform-managed image string textually changes. Push to `ghcr.io/georgeanes/document-risk-auditor-backend`, confirm the package is public.
 
+**Published image:** `ghcr.io/georgeanes/document-risk-auditor-backend:ae2696f`
+**Digest:** `sha256:766810b4c4b5980ff03d4ee6076906583d1e0a9ce3331b3b00fac9fc627b7b80`
+→ This is the exact tag Task 9 must reference in `var.image_tag`.
+
+**Note — auth:** fine-grained PATs (`github_pat_...`) failed to push with `permission_denied: The token provided does not match expected scopes`, even freshly issued. GHCR write reliably needs a **classic** PAT with `write:packages` (a known fine-grained PAT limitation). Operator used a temporary classic PAT, then revoked it and logged Docker out — so the verification below ran genuinely unauthenticated.
+
+**Note — visibility:** the package pushed **private** by default despite the repo being public (exactly the risk the plan flagged). Anonymous access returned 403 until visibility was flipped to Public in the package settings UI. Worth remembering if the package is ever recreated — the Container App configures **zero** registry credentials, so a private package would fail the pull with 401/403 at Task 9.
+
 **Acceptance criteria:**
-- [ ] Image pushed with a git-SHA-based tag
-- [ ] Package visibility explicitly confirmed/set to public in GHCR
+- [x] Image pushed with a git-SHA-based tag (`ae2696f`)
+- [x] Package visibility explicitly confirmed/set to public in GHCR
 
 **Verification:**
-- [ ] `docker build -t ghcr.io/georgeanes/document-risk-auditor-backend:<tag> -f backend/Dockerfile .`
-- [ ] `docker push ghcr.io/georgeanes/document-risk-auditor-backend:<tag>`
-- [ ] From an unauthenticated shell (no `docker login`): `docker pull ghcr.io/georgeanes/document-risk-auditor-backend:<tag>` succeeds — this is the real proof it's public, not just "push succeeded"
+- [x] `docker build -t ghcr.io/georgeanes/document-risk-auditor-backend:ae2696f -f backend/Dockerfile .` — succeeded
+- [x] `docker push ghcr.io/georgeanes/document-risk-auditor-backend:ae2696f` — succeeded, digest `sha256:766810b4...`
+- [x] Anonymous registry token obtained + manifest fetch returned **200** (was 403 while private)
+- [x] With Docker logged out of ghcr.io and the local copy deleted: `docker pull ghcr.io/georgeanes/document-risk-auditor-backend:ae2696f` **succeeded**, digest matched
+- [x] Pulled artifact smoke-tested: `/health` → `{"status":"ok"}`, `/samples` → 3 samples, running as `appuser`
 
 **Dependencies:** Task 4, Task 5
 
