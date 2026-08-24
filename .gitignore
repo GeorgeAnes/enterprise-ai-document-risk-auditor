@@ -41,3 +41,8 @@ data/eval/*
 Thumbs.db
 .idea/
 .vscode/
+
+# Agent skill tooling (local, not part of the deployed app)
+.agents/
+.claude/
+skills-lock.json
