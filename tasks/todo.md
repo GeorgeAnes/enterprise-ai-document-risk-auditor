@@ -111,20 +111,22 @@ Standing instruction for every task that writes a `.tf` file: invoke `full-outpu
 
 ---
 
-### Task 5: Backend Dockerfile
+### Task 5: Backend Dockerfile ✅ DONE
 
 **Description:** No `backend/Dockerfile` exists yet. Multi-stage build on `python:3.12-slim` (matches `docker-compose.yml`): deps-install stage, then a slim runtime stage with a non-root user, `backend/` + `requirements.txt` copied in, `EXPOSE 8000`, `CMD` running `uvicorn backend.app.main:app --host 0.0.0.0 --port 8000`. The app reads sample documents from `REPO_ROOT/data/samples` at runtime (`backend/app/main.py:17-18`), so the image **must** `COPY data/samples/` in — scoped to just that subdirectory (not all of `data/`), so `data/raw/`, `data/private/`, `data/external/`, `data/eval/` (gitignored, some potentially private) can never end up in the public image even if present in a local checkout.
 
+**Note:** deps installed into an isolated venv in the builder stage (not `pip install --user`) — avoids relying on HOME-directory resolution for the non-root runtime user, which is a real edge case that pattern can trip on. `.dockerignore` had to move from the originally-planned `backend/.dockerignore` to repo-root `.dockerignore` — Docker resolves it against the build context root, not the Dockerfile's own directory, and this build's context is repo root (`docker build -f backend/Dockerfile .`). Not load-bearing for correctness (the Dockerfile uses scoped `COPY` paths, not `COPY . .`), but it is what actually makes the ignore rules take effect.
+
 **Acceptance criteria:**
-- [ ] Multi-stage build; final image contains no build tooling, just the app + deps
-- [ ] Runs as a non-root user
-- [ ] `data/samples/*.md` present in the image; `data/raw/`, `data/private/`, `data/external/`, `data/eval/`, `.git/`, `.venv/`, `node_modules/`, `frontend/`, test files are not
-- [ ] Existing single `backend/requirements.txt` used as-is (no prod/dev split)
+- [x] Multi-stage build; final image contains no build tooling, just the app + deps
+- [x] Runs as a non-root user — confirmed via `docker exec ... whoami` → `appuser` (uid=1000)
+- [x] `data/samples/*.md` present in the image; `data/raw/`, `data/private/`, `data/external/`, `data/eval/`, `.git/`, `.venv/`, `node_modules/`, `frontend/`, test files are not — confirmed via `docker exec ... find`
+- [x] Existing single `backend/requirements.txt` used as-is (no prod/dev split)
 
 **Verification:**
-- [ ] `docker build -t docaudit-backend:local -f backend/Dockerfile .`
-- [ ] `docker run -p 8010:8000 -e LLM_MODE=off docaudit-backend:local` then `curl http://127.0.0.1:8010/health` → `{"status":"ok"}`
-- [ ] `curl http://127.0.0.1:8010/samples` returns all 3 samples
+- [x] `docker build -t docaudit-backend:local -f backend/Dockerfile .` — succeeded
+- [x] `docker run -p 8010:8000 -e LLM_MODE=off docaudit-backend:local` then `curl http://127.0.0.1:8010/health` → `{"status":"ok"}`
+- [x] `curl http://127.0.0.1:8010/samples` returns all 3 samples; spot-checked `/samples/consulting_report` content is readable
 
 **Dependencies:** None (parallel to Tasks 1-3)
 

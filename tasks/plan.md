@@ -60,6 +60,7 @@ Phase 6 — Verification, Resilience, Docs
 - [x] Task 2: Provider pin + remote backend wiring — done; `terraform init/fmt/validate` all clean, azurerm v4.81.0
 - [x] Task 3: Resource group + shared scaffolding — done; `rg-docaudit-prod-ne` live in northeurope, tagged
 - [x] Task 4: Backend CORS becomes configurable — done; TDD, 15 tests passing (was 12)
+- [x] Task 5: Backend Dockerfile — done; multi-stage build, non-root user verified, /health + /samples verified in a running container. .dockerignore moved to repo root (Docker resolves it against build context, not the Dockerfile's directory)
 - [ ] Task 3: Resource group + shared scaffolding
 - [ ] Task 4: Backend CORS becomes configurable
 - [ ] Task 5: Backend Dockerfile
