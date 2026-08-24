@@ -56,8 +56,8 @@ Phase 6 — Verification, Resilience, Docs
 ## Task List (index — full cards in `tasks/todo.md`)
 
 ### Phase 1: Foundation
-- [x] Task 1: Bootstrap remote Terraform state (script) — done; region switched westeurope → northeurope mid-task, see `tasks/todo.md` note
-- [ ] Task 2: Provider pin + remote backend wiring
+- [x] Task 1: Bootstrap remote Terraform state (script) — done; region switched westeurope → northeurope mid-task, RBAC grant fixed after diagnosing a Git Bash path-mangling bug (not subscription flakiness as first thought), see `tasks/todo.md` note
+- [x] Task 2: Provider pin + remote backend wiring — done; `terraform init/fmt/validate` all clean, azurerm v4.81.0
 - [ ] Task 3: Resource group + shared scaffolding
 - [ ] Task 4: Backend CORS becomes configurable
 - [ ] Task 5: Backend Dockerfile

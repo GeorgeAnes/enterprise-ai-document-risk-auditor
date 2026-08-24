@@ -10,7 +10,9 @@ Standing instruction for every task that writes a `.tf` file: invoke `full-outpu
 
 **Description:** One-time idempotent `az` CLI script (not Terraform — avoids the chicken-and-egg problem of a backend storing state for the run that would create it) creating the state resource group, storage account, and blob container.
 
-**Note:** region changed from `westeurope` to `northeurope` mid-implementation — Azure rejected new resources in `westeurope` for this subscription (`RequestDisallowedByAzure`, capacity restriction on new/trial subscriptions). Confirmed with the user; all resource naming updated repo-wide (`-ne` suffix). See `SPEC-azure-deployment.md` Assumptions §0. The script's original design also included a self-granted `Storage Blob Data Contributor` role assignment; removed after confirming empirically that this subscription's Owner role already includes full blob data-plane access (`dataActions: ["*"]` on Azure's built-in Owner role) — the grant was both redundant and the exact step hitting this fresh subscription's transient API errors.
+**Note:** region changed from `westeurope` to `northeurope` mid-implementation — Azure rejected new resources in `westeurope` for this subscription (`RequestDisallowedByAzure`, capacity restriction on new/trial subscriptions). Confirmed with the user; all resource naming updated repo-wide (`-ne` suffix). See `SPEC-azure-deployment.md` Assumptions §0.
+
+**Correction (found during Task 2):** an earlier version of this note claimed the script's `Storage Blob Data Contributor` role grant was redundant (subscription Owner already covers blob data-plane access) and removed it. That conclusion was wrong. The grant calls were failing for an unrelated reason: Git Bash on Windows mangles any argument starting with `/` (treats it as a POSIX path and rewrites it), which corrupted every `--scope /subscriptions/...` value and produced a misleading `MissingSubscription` error with no hint of the real cause. Confirmed via `MSYS_NO_PATHCONV=1`, which fixed it immediately. The grant genuinely is required — Terraform's backend needs to LIST blobs to check for existing state, which Owner's implicit access does not cover even though it does cover container *creation*. The role assignment is back in the script, scoped to the resource group (this RG is single-purpose — only ever holds this one storage account — so RG-scope carries the same real blast radius as account-scope here), with `MSYS_NO_PATHCONV=1` on both the idempotency check and the create call. Verified idempotent across two consecutive runs.
 
 **Acceptance criteria:**
 - [x] Checks for existence before creating each resource — safe to re-run
@@ -30,20 +32,22 @@ Standing instruction for every task that writes a `.tf` file: invoke `full-outpu
 
 ---
 
-### Task 2: Provider pin + remote backend wiring
+### Task 2: Provider pin + remote backend wiring ✅ DONE
 
-**Description:** `versions.tf` pins `terraform` and `azurerm` (`~> 4.0`) and declares `provider "azurerm" { features {} }`. `backend.tf` declares an empty `backend "azurerm" {}` block. `backend.hcl` supplies the real resource group/storage account/container/key names from Task 1 — safe to commit (names, not credentials; backend blocks can't read Terraform variables, which is why this file exists as a separate `-backend-config` input).
+**Description:** `versions.tf` pins `terraform` and `azurerm` (`~> 4.0`) and declares `provider "azurerm" { features {} }`. `backend.tf` declares an empty `backend "azurerm" {}` block. `backend.hcl` supplies the real resource group/storage account/container/key names from Task 1 — safe to commit (names, not credentials; backend blocks can't read Terraform variables, which is why this file exists as a separate `-backend-config` input). `backend.hcl` also sets `use_azuread_auth = true` so Terraform itself never touches a storage account key.
+
+**Note:** initial `terraform init` failed with `AuthorizationPermissionMismatch` — this is what surfaced the missing RBAC grant now fixed in Task 1 (see its corrected note). Once that grant was in place, `init` succeeded cleanly.
 
 **Acceptance criteria:**
-- [ ] `terraform init -backend-config=backend.hcl` succeeds from a clean checkout
-- [ ] `.terraform.lock.hcl` generated and committed (pins the exact resolved provider version)
-- [ ] `infra/.gitignore` covers `*.tfstate*`, `*.tfvars` (except `*.tfvars.example`), `.terraform/`
+- [x] `terraform init -backend-config=backend.hcl` succeeds from a clean checkout
+- [x] `.terraform.lock.hcl` generated and committed (pins the exact resolved provider version — azurerm v4.81.0)
+- [x] `infra/.gitignore` covers `*.tfstate*`, `*.tfvars` (except `*.tfvars.example`), `.terraform/`
 
 **Verification:**
-- [ ] `terraform init -backend-config=backend.hcl`
-- [ ] `terraform fmt -check`
-- [ ] `terraform validate` (passes even with zero resources defined)
-- [ ] Confirm no `.tfstate` file appears anywhere in the working tree after `init`
+- [x] `terraform init -backend-config=backend.hcl` — succeeded, backend "azurerm" configured
+- [x] `terraform fmt -check` — clean
+- [x] `terraform validate` — "Success! The configuration is valid."
+- [x] Confirmed no `.tfstate` file appears anywhere in the working tree after `init`
 
 **Dependencies:** Task 1
 
