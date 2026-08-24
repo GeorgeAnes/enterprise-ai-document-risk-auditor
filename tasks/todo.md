@@ -61,20 +61,20 @@ Standing instruction for every task that writes a `.tf` file: invoke `full-outpu
 
 ---
 
-### Task 3: Resource group + shared variable/output scaffolding
+### Task 3: Resource group + shared variable/output scaffolding ✅ DONE
 
 **Description:** `main.tf` creates the resource group (`rg-docaudit-prod-ne`) and a `locals.common_tags` map (`project`, `environment`, `managed_by`) every later resource references. `variables.tf` gets its first entries (`location`, `environment`). `outputs.tf` gets its first output (resource group name). `terraform.tfvars.example` is the committed placeholder template.
 
 **Acceptance criteria:**
-- [ ] `azurerm_resource_group` created in `northeurope`, tagged per the spec's Code Style convention
-- [ ] `locals.common_tags` defined once, referenced (not retyped) by every resource in later tasks
-- [ ] `terraform.tfvars.example` has placeholder values only, no real subscription ID or secrets
+- [x] `azurerm_resource_group` created in `northeurope`, tagged per the spec's Code Style convention
+- [x] `locals.common_tags` defined once, referenced (not retyped) by every resource in later tasks
+- [x] `terraform.tfvars.example` has placeholder values only, no real subscription ID or secrets (location/environment aren't sensitive, so the example shows real values)
 
 **Verification:**
-- [ ] `terraform fmt -check && terraform validate`
-- [ ] `terraform plan -var-file=terraform.tfvars` reviewed before apply (never blind-apply)
-- [ ] `terraform apply -var-file=terraform.tfvars`
-- [ ] `az group show -n rg-docaudit-prod-ne` returns the tagged resource group
+- [x] `terraform fmt -check && terraform validate` — both clean
+- [x] `terraform plan -var-file=terraform.tfvars` reviewed before apply — 1 to add, 0 to change, 0 to destroy, matched design exactly
+- [x] `terraform apply -var-file=terraform.tfvars` — applied, resource created after 26s
+- [x] `az group show -n rg-docaudit-prod-ne` — confirmed, correct location and tags, `provisioningState: Succeeded`
 
 **Dependencies:** Task 2
 
