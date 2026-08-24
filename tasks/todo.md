@@ -88,18 +88,18 @@ Standing instruction for every task that writes a `.tf` file: invoke `full-outpu
 
 ---
 
-### Task 4: Backend CORS becomes configurable
+### Task 4: Backend CORS becomes configurable ✅ DONE
 
 **Description:** Today CORS is hardcoded to `http://localhost:5173`/`127.0.0.1:5173` only (`backend/app/main.py:47-53`) — deployed as-is, the production frontend cannot call the production backend at all. Add an optional `FRONTEND_ORIGIN` env var, additive to the existing dev-origin list. Single value, not a comma-separated list — this is a single-`prod`-only deployment, there's only ever one extra origin to add. Extract a small pure function (e.g. `_cors_allowed_origins() -> list[str]`) that reads the env and returns the list; `add_middleware` calls it once at import time, and tests call the function directly with `monkeypatch.setenv`/`delenv` rather than fighting the module-level `app` object.
 
 **Acceptance criteria:**
-- [ ] `FRONTEND_ORIGIN` unset → behavior identical to today (only the two localhost dev origins allowed), no regression on existing tests
-- [ ] `FRONTEND_ORIGIN` set → that origin is additionally allowed
-- [ ] No wildcard (`*`) ever in `allow_origins`
+- [x] `FRONTEND_ORIGIN` unset → behavior identical to today (only the two localhost dev origins allowed), no regression on existing tests
+- [x] `FRONTEND_ORIGIN` set → that origin is additionally allowed
+- [x] No wildcard (`*`) ever in `allow_origins`
 
 **Verification:**
-- [ ] New test(s) in `backend/tests/test_api.py` written first (TDD), failing before the change, passing after
-- [ ] Full `pytest` suite passes
+- [x] New tests in `backend/tests/test_api.py` written first (TDD) — confirmed failing (ImportError) before the change, all 3 passing after
+- [x] Full `pytest` suite passes — 15 passed (was 12, +3 new)
 
 **Dependencies:** None (parallel to Tasks 1-3)
 
