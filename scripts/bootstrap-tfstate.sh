@@ -6,12 +6,8 @@
 # script creates just the resource group, storage account, and blob container
 # that infra/backend.hcl (Task 2) points Terraform at.
 #
-# AAD-only throughout (--auth-mode login) -- no storage account keys, ever,
-# consistent with the rest of this deployment. No explicit role grant is
-# needed here: Azure's built-in Owner/Contributor roles already include full
-# blob data-plane access. If you run this as a more restricted identity that
-# lacks Storage Blob Data Contributor/Owner on the subscription or resource
-# group, grant that role to yourself before running this script.
+# AAD-only throughout (--auth-mode login / use_azuread_auth) -- no storage
+# account keys, ever, consistent with the rest of this deployment.
 set -euo pipefail
 
 RESOURCE_GROUP="rg-docaudit-tfstate-ne"
@@ -49,11 +45,45 @@ else
     --output none
 fi
 
+# Subscription Owner/Contributor does not reliably cover blob data-plane
+# LIST access (confirmed empirically: container CREATE succeeds without
+# this grant, but Terraform's backend -- which lists blobs to check for
+# existing state -- gets a 403 without it). Grant it explicitly rather
+# than relying on inherited access.
+#
+# Scoped to the resource group, not the storage account specifically:
+# this RG exists solely to hold Terraform state and will never contain
+# anything else, so RG-scope carries the same real blast radius as
+# account-scope here without the extra indirection.
+#
+# MSYS_NO_PATHCONV=1 is required on every call below that passes a
+# `--scope /subscriptions/...` value. Git Bash on Windows treats a
+# leading-slash argument as a POSIX path and silently rewrites it to a
+# Windows path, corrupting the scope. The resulting Azure error --
+# "MissingSubscription: ... did not have a subscription or a valid
+# tenant level resource provider" -- gives no hint this is what
+# happened; it looks exactly like a real backend/subscription problem.
+SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+RG_SCOPE="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}"
+SIGNED_IN_USER=$(az ad signed-in-user show --query id -o tsv)
+
+if MSYS_NO_PATHCONV=1 az role assignment list --assignee "$SIGNED_IN_USER" --scope "$RG_SCOPE" \
+    --role "Storage Blob Data Contributor" -o tsv | grep -q .; then
+  echo "Signed-in user already has Storage Blob Data Contributor on $RESOURCE_GROUP, skipping."
+else
+  echo "Granting Storage Blob Data Contributor on $RESOURCE_GROUP to the signed-in user..."
+  MSYS_NO_PATHCONV=1 az role assignment create \
+    --assignee-object-id "$SIGNED_IN_USER" \
+    --assignee-principal-type "User" \
+    --role "Storage Blob Data Contributor" \
+    --scope "$RG_SCOPE" \
+    --output none
+fi
+
 echo "Ensuring container $CONTAINER_NAME exists..."
 # ponytail: fresh subscriptions can be transiently flaky across ARM calls
-# for the first few minutes after creation (seen firsthand while writing
-# this script) -- a short bounded retry absorbs that without masking a real,
-# persistent failure.
+# for the first few minutes after creation -- a short bounded retry
+# absorbs that without masking a real, persistent failure.
 container_ready=false
 for attempt in 1 2 3; do
   if az storage container create \
