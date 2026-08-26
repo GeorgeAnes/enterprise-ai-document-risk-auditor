@@ -269,33 +269,50 @@ The actual control is `daily_quota_gb` on the workspace. Set to `0.1` — ample 
 **This is the only hard spend stop anywhere in the stack.** The Task 8 budget *alerts* — it never caps, throttles, or deletes. `daily_quota_gb` is the single control in this architecture that actually halts a cost rather than emailing about it. Scale-to-zero keeps compute near zero by design, but it is a consequence of no traffic, not an enforced ceiling.
 
 **Acceptance criteria:**
-- [ ] `daily_quota_gb` set on the Log Analytics workspace (ingestion hard-capped, not merely retained for 30 days)
-- [ ] System-assigned managed identity present, no registry credentials configured anywhere (image pulled anonymously)
-- [ ] `min_replicas = 0`, `max_replicas = 2`
-- [ ] Ingress external, HTTPS
-- [ ] `FRONTEND_ORIGIN` env var resolves to the real SWA hostname, not a placeholder
+- [x] `daily_quota_gb` set on the Log Analytics workspace (ingestion hard-capped, not merely retained for 30 days) — `0.1`, alongside `retention_in_days = 30`
+- [x] System-assigned managed identity present, no registry credentials configured anywhere (image pulled anonymously) — `identity.type = SystemAssigned`, principal `25309fc7-ff24-425f-9740-b688087fd3b5`; `properties.configuration.registries` and `.secrets` both `null`
+- [x] `min_replicas = 0`, `max_replicas = 2`
+- [x] Ingress external, HTTPS — plain HTTP returns 301 to the HTTPS URL (`allow_insecure_connections = false`)
+- [x] `FRONTEND_ORIGIN` env var resolves to the real SWA hostname, not a placeholder — `https://ambitious-glacier-0ef327a0f.7.azurestaticapps.net`
 
 **Verification:**
-- [ ] `terraform plan -var-file=terraform.tfvars` reviewed, then `apply`
-- [ ] `curl https://<backend-fqdn>/health` → `{"status":"ok"}` over HTTPS
-- [ ] `az containerapp show` confirms the identity block and zero registry credentials in the config
-- [ ] Immediately post-apply (no traffic yet), replica count is 0
+- [x] `terraform plan` reviewed (3 to add, 0 change, 0 destroy), then applied; follow-up plan empty (exit 0, no drift)
+- [x] `curl https://<backend-fqdn>/health` → `{"status":"ok"}`, 200, TLS verify 0
+- [x] `/samples` returns all 3 samples from the image's baked-in copy
+- [x] `az containerapp show` confirms the identity block and zero registry credentials
+- [x] Scale-to-zero proven as a full round trip (see finding below)
+- [x] CORS preflight from the real SWA origin returns `access-control-allow-origin: https://ambitious-glacier-0ef327a0f.7.azurestaticapps.net` — Task 4 → Task 7 → Task 9 wiring confirmed live, ahead of Task 13
 
 **Dependencies:** Task 3, Task 6, Task 7
 
-**Files likely touched:**
-- `infra/container_app.tf`
-- `infra/variables.tf` (add `image_tag`)
-- `infra/outputs.tf` (add backend FQDN)
+**Files touched:**
+- `infra/container_app.tf` (new)
+- `infra/variables.tf` (added `image_tag`, `ghcr_owner`, `ghcr_image_name`)
+- `infra/outputs.tf` (added `backend_fqdn`, `backend_principal_id`)
 
-**Estimated scope:** Medium (3 files)
+**Estimated scope:** Medium (3 files) — actual: 3 files
+
+**Outcome:** commit `f5d6012`. FQDN `ca-docaudit-backend-prod-ne.calmmoss-5d3b8134.northeurope.azurecontainerapps.io`, backend principal ID `25309fc7-ff24-425f-9740-b688087fd3b5` (Tasks 10 and 11 scope their RBAC grants to it).
+
+**Blocker hit — `Microsoft.App` was `NotRegistered`.** Registered with `az provider register --namespace Microsoft.App` and polled to `Registered` (~30s) before planning. Same class of failure as Task 1's `Microsoft.Storage`, where it surfaced as a misleading `SubscriptionNotFound`. Worth pre-checking provider registration on this subscription before any new resource type.
+
+**Finding — the original "replica count is 0 immediately post-apply" check was wrong, and my first attempt at it produced a false positive.** Two separate problems:
+1. A freshly created Container App always starts one provisioning replica to reach `Healthy`, so it is *not* 0 immediately post-apply. The criterion as written could never pass honestly.
+2. My first scale-to-zero poll piped `az` errors to `/dev/null` and counted lines, so a *failed* command was indistinguishable from a genuine zero. It reported "scaled to zero" on the first poll, seconds after I had driven traffic — a result that should not have been believable, and was not.
+
+Re-verified properly as a full round trip, with `--query "length(@)"` so a command failure aborts loudly instead of reading as zero: **0 replicas → request cold-starts in 21.0s returning 200 → replicas reads 1 → ~90s idle → replicas reads 0.** The check demonstrably reports both states, so zero means zero. Scale-to-zero is confirmed working.
+
+**Finding — cold start is ~21 seconds.** This is the direct cost of `min_replicas = 0`, which is a non-negotiable constraint, so it stays. But it is a real UX consequence for a portfolio demo: the first visitor after any idle period waits ~21s for the first response, while a warm request is 0.26s. Worth surfacing on the project page or handling in the frontend with a loading state that sets expectations, rather than letting a reviewer think the app is broken. Flagged for Task 13/16 — not a defect to fix here.
+
+**Finding — the ARM API reports `minReplicas: null`, not `0`.** `az containerapp show --query properties.template.scale` shows `minReplicas: null` even though Terraform state correctly holds `min_replicas = 0`. Azure omits the field when it is zero. Do not read that `null` as "unset/defaulted to something else" during Task 14 or Task 15 — the behavioural round-trip above is the authoritative check, not the field.
 
 ---
 
 ## Checkpoint: End of Phase 3
-- [ ] Backend reachable at its FQDN over HTTPS, `/health` returns 200
-- [ ] No API key, connection string, or registry credential anywhere in `az containerapp show` output
-- [ ] Review with human before proceeding to Phase 4
+- [x] Backend reachable at its FQDN over HTTPS, `/health` returns 200 — plain HTTP 301s to HTTPS
+- [x] No API key, connection string, or registry credential anywhere in `az containerapp show` output — `registries: null`, `secrets: null`
+- [x] Scale-to-zero proven by round trip (0 → 1 on request → 0 after idle), not inferred from a config field
+- [ ] Review with human before proceeding to Phase 4 — **AWAITING**
 
 ---
 

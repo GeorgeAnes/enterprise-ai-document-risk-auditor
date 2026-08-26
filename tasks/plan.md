@@ -82,12 +82,13 @@ Phase 6 — Verification, Resilience, Docs
 - [ ] Review with human before Phase 3 — **AWAITING**
 
 ### Phase 3: Backend Compute
-- [ ] Task 9: Container Apps environment + backend app + managed identity
+- [x] Task 9: Container Apps environment + backend app + managed identity — done; live at `ca-docaudit-backend-prod-ne.calmmoss-5d3b8134.northeurope.azurecontainerapps.io`, `/health` 200 over HTTPS, zero registry credentials. `Microsoft.App` needed registering first. Log Analytics ingestion capped via `daily_quota_gb = 0.1` per the human's correction. Scale-to-zero proven as a round trip after a first attempt produced a false positive; cold start measured at ~21s
 
 ### Checkpoint: End of Phase 3
-- [ ] Backend reachable over HTTPS, `/health` 200
-- [ ] No credentials in `az containerapp show`
-- [ ] Review with human before Phase 4
+- [x] Backend reachable over HTTPS, `/health` 200
+- [x] No credentials in `az containerapp show`
+- [x] Scale-to-zero behaviourally proven (0 → 1 → 0), not inferred from config
+- [ ] Review with human before Phase 4 — **AWAITING**
 
 ### Phase 4: Least-Privilege Data Plane
 - [ ] Task 10: Blob Storage — account, private container, sample docs, RBAC
