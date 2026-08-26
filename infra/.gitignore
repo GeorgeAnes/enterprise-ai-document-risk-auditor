@@ -16,3 +16,9 @@ crash.*.log
 
 # NOTE: .terraform.lock.hcl is intentionally NOT ignored -- it pins the
 # exact resolved provider version and must be committed.
+
+# Saved plan files -- a plan contains the full resource payload, including
+# values marked sensitive (e.g. the SWA deployment token).
+tfplan
+tfplan.*
+*.tfplan
