@@ -63,6 +63,28 @@ flowchart LR
 
 The deterministic pipeline is the auditable baseline: ingestion, chunking, claim extraction, TF-IDF retrieval, risk scoring, labels, and exports are reproducible and do not require an LLM. The local Gemma reviewer is an interpretive layer: it reviews the top risky claims after scoring and adds notes, safer rewrites, missing-evidence questions, and business impact. If LM Studio is unavailable, the deterministic audit still completes.
 
+## Live Deployment
+
+Running on Azure, fully provisioned by Terraform in [`infra/`](infra):
+
+**https://kind-beach-04e83b00f.7.azurestaticapps.net**
+
+React frontend on Static Web Apps, FastAPI backend on Container Apps with a
+system-assigned managed identity, sample documents in Blob Storage, remote
+Terraform state. No secrets exist anywhere in the deployment: the container
+image is pulled anonymously from a public GHCR package, storage shared keys
+are disabled at the platform level, and the backend identity holds exactly one
+container-scoped RBAC grant.
+
+> **First request takes ~20s.** The backend scales to zero when idle, so the
+> first request after a quiet period cold-starts a container. Subsequent
+> requests are under 300ms. That tradeoff is why this runs at €0/month — see
+> [the deployment architecture](docs/architecture-azure.md#the-cold-start-and-why-it-is-here)
+> for why it was chosen.
+
+Full topology, cost breakdown, security model, and the destroy/recreate
+reproducibility proof: **[docs/architecture-azure.md](docs/architecture-azure.md)**
+
 ## Screenshot
 
 The dark risk-intelligence dashboard is generated locally from synthetic samples.
