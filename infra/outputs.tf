@@ -13,3 +13,13 @@ output "static_web_app_deployment_token" {
   value       = azurerm_static_web_app.this.api_key
   sensitive   = true
 }
+
+output "backend_fqdn" {
+  description = "Public hostname of the backend Container App. Task 13 bakes this into the frontend build as VITE_API_BASE_URL."
+  value       = azurerm_container_app.backend.ingress[0].fqdn
+}
+
+output "backend_principal_id" {
+  description = "Principal ID of the backend's system-assigned managed identity. Tasks 10 and 11 scope their RBAC grants to it."
+  value       = azurerm_container_app.backend.identity[0].principal_id
+}

@@ -31,3 +31,21 @@ variable "budget_contact_email" {
   description = "Email address that receives budget threshold alerts. Deliberately has no default so a real address is never committed; set it in the gitignored terraform.tfvars."
   type        = string
 }
+
+variable "ghcr_owner" {
+  description = "GitHub account owning the public GHCR package holding the backend image."
+  type        = string
+  default     = "georgeanes"
+}
+
+variable "ghcr_image_name" {
+  description = "GHCR package name for the backend image."
+  type        = string
+  default     = "document-risk-auditor-backend"
+}
+
+variable "image_tag" {
+  description = "Backend image tag to deploy. Always an immutable git short SHA, never a floating tag like `latest`: Container Apps only rolls a new revision when this string changes, so a mutable tag would silently stop deploying new builds after the first one."
+  type        = string
+  default     = "ae2696f"
+}
