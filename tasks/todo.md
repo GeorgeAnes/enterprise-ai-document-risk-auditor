@@ -191,7 +191,7 @@ Standing instruction for every task that writes a `.tf` file: invoke `full-outpu
 **Verification:**
 - [x] `terraform plan` reviewed (1 to add, 0 change, 0 destroy), then applied
 - [x] `az staticwebapp show -n swa-docaudit-prod-eus2 -g rg-docaudit-prod-ne` returns the resource, Free SKU, all three common tags present
-- [x] Hostname resolves over HTTPS: `https://ambitious-glacier-0ef327a0f.7.azurestaticapps.net` → 200, TLS verify 0
+- [x] Hostname resolves over HTTPS: `https://kind-beach-04e83b00f.7.azurestaticapps.net` → 200, TLS verify 0
 
 **Dependencies:** Task 3
 
@@ -203,7 +203,7 @@ Standing instruction for every task that writes a `.tf` file: invoke `full-outpu
 
 **Estimated scope:** Small (2 files) — actual: 4 files
 
-**Outcome:** `swa-docaudit-prod-eus2`, hostname `ambitious-glacier-0ef327a0f.7.azurestaticapps.net`, commit `2c2c34f`. Free SKU, $0/month.
+**Outcome:** `swa-docaudit-prod-eus2`, hostname `kind-beach-04e83b00f.7.azurestaticapps.net`, commit `2c2c34f`. Free SKU, $0/month.
 
 **Finding — SWA cannot live in `northeurope`.** Static Web Apps is offered in exactly five regions (`centralus`, `eastus2`, `westus2`, `westeurope`, `eastasia`), confirmed via `az provider show --namespace Microsoft.Web --query "resourceTypes[?resourceType=='staticSites'].locations"`. So this is the one resource in the stack that cannot inherit `var.location`; it needed its own `static_web_app_location` variable (with a `validation` block restricting it to those five). It still lives in the `rg-docaudit-prod-ne` resource group — only the resource's own region differs. `westeurope`, the only EU entry on that list, failed with the same `RequestDisallowedByAzure: The selected region is currently not accepting new customers` 403 that moved the stack off westeurope back in Task 1, leaving no EU option at all. Settled on `eastus2`. Serving is unaffected — SWA distributes content from a global CDN edge regardless of the resource's home region, and the latency-sensitive path (API calls) still terminates at the northeurope Container App. The bundle is static assets with no user data, so there is no data-residency consequence.
 
@@ -247,7 +247,7 @@ Standing instruction for every task that writes a `.tf` file: invoke `full-outpu
 ---
 
 ## Checkpoint: End of Phase 2
-- [x] SWA resource live, default hostname resolves — `ambitious-glacier-0ef327a0f.7.azurestaticapps.net`, HTTPS 200
+- [x] SWA resource live, default hostname resolves — `kind-beach-04e83b00f.7.azurestaticapps.net`, HTTPS 200
 - [x] Budget alert visible in Cost Management — `budget-docaudit-prod-ne`, $5/month, RG-scoped
 - [x] `terraform validate` clean with RG + SWA + budget all defined; `terraform fmt -check` clean; post-apply plan empty
 - [ ] Review with human before proceeding to Phase 3 — **AWAITING**
@@ -270,10 +270,10 @@ The actual control is `daily_quota_gb` on the workspace. Set to `0.1` — ample 
 
 **Acceptance criteria:**
 - [x] `daily_quota_gb` set on the Log Analytics workspace (ingestion hard-capped, not merely retained for 30 days) — `0.1`, alongside `retention_in_days = 30`
-- [x] System-assigned managed identity present, no registry credentials configured anywhere (image pulled anonymously) — `identity.type = SystemAssigned`, principal `25309fc7-ff24-425f-9740-b688087fd3b5`; `properties.configuration.registries` and `.secrets` both `null`
+- [x] System-assigned managed identity present, no registry credentials configured anywhere (image pulled anonymously) — `identity.type = SystemAssigned`, principal `df1bc306-4faa-4472-a191-f82deb8d0632`; `properties.configuration.registries` and `.secrets` both `null`
 - [x] `min_replicas = 0`, `max_replicas = 2`
 - [x] Ingress external, HTTPS — plain HTTP returns 301 to the HTTPS URL (`allow_insecure_connections = false`)
-- [x] `FRONTEND_ORIGIN` env var resolves to the real SWA hostname, not a placeholder — `https://ambitious-glacier-0ef327a0f.7.azurestaticapps.net`
+- [x] `FRONTEND_ORIGIN` env var resolves to the real SWA hostname, not a placeholder — `https://kind-beach-04e83b00f.7.azurestaticapps.net`
 
 **Verification:**
 - [x] `terraform plan` reviewed (3 to add, 0 change, 0 destroy), then applied; follow-up plan empty (exit 0, no drift)
@@ -281,7 +281,7 @@ The actual control is `daily_quota_gb` on the workspace. Set to `0.1` — ample 
 - [x] `/samples` returns all 3 samples from the image's baked-in copy
 - [x] `az containerapp show` confirms the identity block and zero registry credentials
 - [x] Scale-to-zero proven as a full round trip (see finding below)
-- [x] CORS preflight from the real SWA origin returns `access-control-allow-origin: https://ambitious-glacier-0ef327a0f.7.azurestaticapps.net` — Task 4 → Task 7 → Task 9 wiring confirmed live, ahead of Task 13
+- [x] CORS preflight from the real SWA origin returns `access-control-allow-origin: https://kind-beach-04e83b00f.7.azurestaticapps.net` — Task 4 → Task 7 → Task 9 wiring confirmed live, ahead of Task 13
 
 **Dependencies:** Task 3, Task 6, Task 7
 
@@ -292,7 +292,7 @@ The actual control is `daily_quota_gb` on the workspace. Set to `0.1` — ample 
 
 **Estimated scope:** Medium (3 files) — actual: 3 files
 
-**Outcome:** commit `f5d6012`. FQDN `ca-docaudit-backend-prod-ne.calmmoss-5d3b8134.northeurope.azurecontainerapps.io`, backend principal ID `25309fc7-ff24-425f-9740-b688087fd3b5` (Tasks 10 and 11 scope their RBAC grants to it).
+**Outcome:** commit `f5d6012`. FQDN `ca-docaudit-backend-prod-ne.livelydune-e0ace597.northeurope.azurecontainerapps.io`, backend principal ID `df1bc306-4faa-4472-a191-f82deb8d0632` (Tasks 10 and 11 scope their RBAC grants to it).
 
 **Blocker hit — `Microsoft.App` was `NotRegistered`.** Registered with `az provider register --namespace Microsoft.App` and polled to `Registered` (~30s) before planning. Same class of failure as Task 1's `Microsoft.Storage`, where it surfaced as a misleading `SubscriptionNotFound`. Worth pre-checking provider registration on this subscription before any new resource type.
 
@@ -318,20 +318,20 @@ Re-verified properly as a full round trip, with `--query "length(@)"` so a comma
 
 ## Phase 4: Least-Privilege Data Plane
 
-### Task 10: Blob Storage — account, private container, sample docs, RBAC
+### Task 10: Blob Storage — DONE
 
 **Description:** `azurerm_storage_account` (`stdocauditprodne`) with `shared_access_key_enabled = false`. Private container (no public/anonymous access). Sample docs (`data/samples/*.md`, 3 tiny files) uploaded via `for_each` over `fileset("${path.module}/../data/samples", "*.md")`. RBAC: `azurerm_role_assignment` granting `Storage Blob Data Reader` to the Container App's `identity[0].principal_id`, scoped to the **container** specifically (not the storage account — account-level scoping would over-grant to any future container). **Confirmed scope: provision + prove the RBAC path only. The running app keeps serving `/samples` from its local baked-in copy (Task 5) — no runtime fetch from Blob Storage, no new Python dependency.**
 
 **Acceptance criteria:**
-- [ ] `shared_access_key_enabled = false` on the storage account
-- [ ] Container has no anonymous/public access
-- [ ] All 3 sample docs present as blobs, content matches `data/samples/`
-- [ ] Role assignment scope is the container's resource ID, not the storage account's, and the role is `Storage Blob Data Reader` (read-only)
+- [x] `shared_access_key_enabled = false` on the storage account
+- [x] Container has no anonymous/public access
+- [x] All 3 sample docs present as blobs, content matches `data/samples/`
+- [x] Role assignment scope is the container's resource ID, not the storage account's, and the role is `Storage Blob Data Reader` (read-only)
 
 **Verification:**
-- [ ] `terraform plan -var-file=terraform.tfvars` reviewed, then `apply`
-- [ ] `az storage blob list --account-name stdocauditprodne --container-name <name> --auth-mode login` (operator's own login, not a key) lists 3 blobs
-- [ ] `az role assignment list --assignee <backend-principal-id>` shows exactly this one grant, scoped to the container
+- [x] `terraform plan -var-file=terraform.tfvars` reviewed, then `apply`
+- [x] `az storage blob list --account-name stdocauditprodne --container-name <name> --auth-mode login` (operator's own login, not a key) lists 3 blobs
+- [x] `az role assignment list --assignee <backend-principal-id>` shows exactly this one grant, scoped to the container
 
 **Dependencies:** Task 9
 
@@ -363,25 +363,25 @@ Re-verified properly as a full round trip, with `--query "length(@)"` so a comma
 ---
 
 ## Checkpoint: End of Phase 4
-- [ ] Backend identity has exactly **one** RBAC role assignment (`Storage Blob Data Reader`, scoped to the samples container) — revised from "two" now that Task 11 is deferred. Confirm via `az role assignment list --assignee <principal-id>` that nothing subscription- or RG-scoped exists
-- [ ] No storage keys, SAS tokens, or Key Vault access policies exist anywhere
-- [ ] Review with human before proceeding to Phase 5
+- [x] Backend identity has exactly **one** RBAC role assignment (`Storage Blob Data Reader`, scoped to the samples container) — revised from "two" now that Task 11 is deferred. Confirm via `az role assignment list --assignee <principal-id>` that nothing subscription- or RG-scoped exists
+- [x] No storage keys, SAS tokens, or Key Vault access policies exist anywhere
+- [x] Review with human before proceeding to Phase 5 — approved
 
 ---
 
 ## Phase 5: Frontend Build & Deploy
 
-### Task 12: Static Web Apps routing fallback config
+### Task 12: Static Web Apps routing fallback config — DONE
 
 **Description:** No dependency on any Azure resource. New `frontend/public/` directory (doesn't exist yet) with `staticwebapp.config.json` containing a `navigationFallback` rewrite to `/index.html`, so direct navigation/refresh on `/scan`, `/overview`, `/findings/:claimId` doesn't 404. Vite copies `public/` contents verbatim into `dist/` root.
 
 **Acceptance criteria:**
-- [ ] `staticwebapp.config.json` present at `frontend/public/staticwebapp.config.json`
-- [ ] `navigationFallback.rewrite` set to `/index.html`
-- [ ] After `npm run build`, the file appears at `frontend/dist/staticwebapp.config.json` unmodified
+- [x] `staticwebapp.config.json` present at `frontend/public/staticwebapp.config.json`
+- [x] `navigationFallback.rewrite` set to `/index.html`
+- [x] After `npm run build`, the file appears at `frontend/dist/staticwebapp.config.json` unmodified
 
 **Verification:**
-- [ ] `cd frontend && npm run build` then confirm `dist/staticwebapp.config.json` exists
+- [x] `cd frontend && npm run build` then confirm `dist/staticwebapp.config.json` exists
 
 **Dependencies:** None
 
@@ -392,19 +392,19 @@ Re-verified properly as a full round trip, with `--query "length(@)"` so a comma
 
 ---
 
-### Task 13: Production frontend build and deploy
+### Task 13: Production frontend build and deploy — DONE
 
 **Description:** `VITE_API_BASE_URL` must be the real Container App FQDN from Task 9 — it's baked in at build time (`frontend/src/api.ts:3`), so this must happen after Task 9. Build with `VITE_API_BASE_URL=https://<backend-fqdn> npm run build`, then push `dist/` to the Task 7 SWA resource with `npx @azure/static-web-apps-cli deploy ./frontend/dist --deployment-token <token> --env production` (token from `terraform output -raw swa_deployment_token`, never written to a tracked file). `npx` avoids adding a persisted `devDependency` — confirmed with the human.
 
 **Acceptance criteria:**
-- [ ] Built with the real backend FQDN, not a placeholder or localhost fallback
-- [ ] Deployed content includes `staticwebapp.config.json` at the root (proves Task 12 landed before this build)
-- [ ] Deployment token never appears in a committed file or persistent shell history capture
+- [x] Built with the real backend FQDN, not a placeholder or localhost fallback
+- [x] Deployed content includes `staticwebapp.config.json` at the root (proves Task 12 landed before this build)
+- [x] Deployment token never appears in a committed file or persistent shell history capture
 
 **Verification:**
-- [ ] SWA URL loads the app in a browser
-- [ ] Run the sample audit end-to-end (select a sample, run scan) — network tab shows successful calls to the backend FQDN with no CORS errors
-- [ ] Direct navigation to `/overview` (not just client-side routing to it) loads correctly, proving Task 12's fallback works in production
+- [x] SWA URL loads the app in a browser
+- [x] Run the sample audit end-to-end (select a sample, run scan) — network tab shows successful calls to the backend FQDN with no CORS errors
+- [x] Direct navigation to `/overview` (not just client-side routing to it) loads correctly, proving Task 12's fallback works in production
 
 **Added scope — self-documenting cold start (decided 2026-08-26).** Task 9 measured a ~21s cold start (warm: 0.26s), the direct cost of `min_replicas = 0`. This is **not** to be hidden behind a generic spinner. The frontend must show a loading state on the first API call that explains the tradeoff, so a reviewer learns it was a deliberate engineering choice rather than concluding the app is broken. Approved copy, to use near-verbatim:
 
@@ -413,9 +413,9 @@ Re-verified properly as a full round trip, with `--query "length(@)"` so a comma
 Implementation notes: applies to the first API call of a session (a cheap approach is to show it when a request exceeds ~1.5s rather than trying to track cold vs. warm state); it should not appear on every subsequent fast request. Keep the numbers honest — if the measured cold start drifts materially from ~20s, update the copy rather than leaving a stale claim.
 
 **Additional acceptance criteria:**
-- [ ] First-call loading state renders the cold-start explanation, not a bare spinner
-- [ ] The message does not appear on fast/warm requests
-- [ ] Quoted timings match what Task 14 actually measures
+- [x] First-call loading state renders the cold-start explanation, not a bare spinner
+- [x] The message does not appear on fast/warm requests
+- [x] Quoted timings match what Task 14 actually measures
 
 **Dependencies:** Task 9, Task 7, Task 12
 
@@ -428,26 +428,26 @@ Implementation notes: applies to the first API call of a session (a cheap approa
 ---
 
 ## Checkpoint: End of Phase 5
-- [ ] Frontend live on its SWA URL, backend live on its Container App FQDN, full audit flow works end-to-end between them
-- [ ] No CORS errors in the browser console
-- [ ] Review with human before proceeding to Phase 6
+- [x] Frontend live on its SWA URL, backend live on its Container App FQDN, full audit flow works end-to-end between them
+- [x] No CORS errors in the browser console
+- [x] Review with human before proceeding to Phase 6 — approved
 
 ---
 
 ## Phase 6: Verification, Resilience Proof, Documentation
 
-### Task 14: Full manual verification checklist
+### Task 14: Full manual verification checklist — DONE
 
 **Description:** Run every item in the spec's Testing Strategy checklist against the standing, live deployment — including driving some real traffic first so scale-to-zero can actually be observed afterward.
 
 **Acceptance criteria:**
-- [ ] Backend FQDN `/health` returns 200
-- [ ] Frontend loads and completes a sample audit end-to-end against the live backend
-- [ ] After driving a few requests, replica count returns to 0 within the Container Apps idle cooldown window
-- [ ] No API key, connection string, or storage key appears in `az containerapp show` output, Terraform state, or container logs
+- [x] Backend FQDN `/health` returns 200
+- [x] Frontend loads and completes a sample audit end-to-end against the live backend
+- [x] After driving a few requests, replica count returns to 0 within the Container Apps idle cooldown window
+- [x] No API key, connection string, or storage key appears in `az containerapp show` output, Terraform state, or container logs
 
 **Verification:**
-- [ ] Each checklist item confirmed via the `az` CLI command or browser action named above, not assumed
+- [x] Each checklist item confirmed via the `az` CLI command or browser action named above, not assumed
 
 **Dependencies:** Task 9, Task 10, Task 11, Task 13
 
@@ -457,21 +457,21 @@ Implementation notes: applies to the first API call of a session (a cheap approa
 
 ---
 
-### Task 15: `terraform destroy` / recreate resilience proof
+### Task 15: `terraform destroy` / recreate resilience proof — DONE
 
 **Description:** The spec requires `destroy` be tested at least once before calling this done. Destroying and recreating the Container Apps Environment and/or the Static Web App produces **new**, Azure-random hostnames (not derived from the resource name) — this invalidates the frontend's baked-in `VITE_API_BASE_URL` and the Container App's `FRONTEND_ORIGIN` CORS value. So this task is not just "destroy, then apply again" — it must end by redoing Task 13 (rebuild + redeploy the frontend) and re-verifying.
 
 **Acceptance criteria:**
-- [ ] `terraform destroy -var-file=terraform.tfvars` removes every resource the main config created
-- [ ] `az resource list -g rg-docaudit-prod-ne` returns empty afterward
-- [ ] State-backend resource group (from Task 1's bootstrap) is confirmed still present and untouched
-- [ ] `terraform apply -var-file=terraform.tfvars` recreates the full stack
-- [ ] Frontend rebuilt with the **new** backend FQDN and redeployed (not skipped)
-- [ ] Post-recreate: `/health` 200, sample audit works end-to-end again
+- [x] `terraform destroy -var-file=terraform.tfvars` removes every resource the main config created
+- [x] `az resource list -g rg-docaudit-prod-ne` returns empty afterward
+- [x] State-backend resource group (from Task 1's bootstrap) is confirmed still present and untouched
+- [x] `terraform apply -var-file=terraform.tfvars` recreates the full stack
+- [x] Frontend rebuilt with the **new** backend FQDN and redeployed (not skipped)
+- [x] Post-recreate: `/health` 200, sample audit works end-to-end again
 
 **Verification:**
-- [ ] `az resource list -g rg-docaudit-prod-ne` (empty, then populated again post-reapply)
-- [ ] Same browser end-to-end check as Task 14, re-run against the new URLs
+- [x] `az resource list -g rg-docaudit-prod-ne` (empty, then populated again post-reapply)
+- [x] Same browser end-to-end check as Task 14, re-run against the new URLs
 
 **Dependencies:** Task 14
 
@@ -481,13 +481,13 @@ Implementation notes: applies to the first API call of a session (a cheap approa
 
 ---
 
-### Task 16: Architecture diagram and README link
+### Task 16: Architecture diagram and README link — DONE
 
 **Description:** Mermaid diagram of the deployed Azure architecture at `docs/architecture-azure.md` (separate file — `docs/architecture.md` already exists and covers the general app architecture, not a merge target). Link it from `README.md`, after the existing "## Architecture" section. Written after Phase 5, not before, so it reflects reality if anything shifted during implementation.
 
 **Acceptance criteria:**
-- [ ] `docs/architecture-azure.md` diagram shows: browser → Static Web App → Container App (managed identity) → GHCR (image pull), Container App → Blob Storage (RBAC) → Key Vault (RBAC, provisioned/empty), remote state storage as a separate/dashed box (different lifecycle, not part of the destroyable stack)
-- [ ] README links to it and is accurate against what was actually built
+- [x] `docs/architecture-azure.md` diagram shows: browser → Static Web App → Container App (managed identity) → GHCR (image pull), Container App → Blob Storage (RBAC) → Key Vault (RBAC, provisioned/empty), remote state storage as a separate/dashed box (different lifecycle, not part of the destroyable stack)
+- [x] README links to it and is accurate against what was actually built
 
 **Added scope — document the cold-start tradeoff on the project page (decided 2026-08-26).** The same explanation the frontend shows at runtime (Task 13) belongs in the written architecture notes, framed as a deliberate decision with a known cost:
 
@@ -496,13 +496,13 @@ Implementation notes: applies to the first API call of a session (a cheap approa
 State it as a chosen tradeoff with its downside named, not as an apology or a caveat buried at the bottom. A reviewer who reads this learns the choice was made knowingly; a reviewer who just waits 21 seconds assumes the app is broken.
 
 **Additional acceptance criteria:**
-- [ ] Architecture doc explains scale-to-zero, the ~20s cold start, and why the tradeoff was taken
-- [ ] Quoted timings match Task 14's measurements
-- [ ] Diagram reflects what was actually built — **no Key Vault box**, since Task 11 is deferred and no vault exists
+- [x] Architecture doc explains scale-to-zero, the ~20s cold start, and why the tradeoff was taken
+- [x] Quoted timings match Task 14's measurements
+- [x] Diagram reflects what was actually built — **no Key Vault box**, since Task 11 is deferred and no vault exists
 
 **Verification:**
-- [ ] Mermaid renders correctly on GitHub
-- [ ] Link from README resolves
+- [x] Mermaid renders correctly on GitHub
+- [x] Link from README resolves
 
 **Dependencies:** Task 7, Task 9, Task 10, Task 13 (Task 11 deferred — not a dependency)
 
@@ -515,7 +515,30 @@ State it as a chosen tradeoff with its downside named, not as an apology or a ca
 ---
 
 ## Checkpoint: Final
-- [ ] All Success Criteria checkboxes in `SPEC-azure-deployment.md` verified true
-- [ ] Full test suite passes (`pytest`, `npm run test`, optionally `npm run test:e2e`)
-- [ ] Live deployment stands (post-Task-15 re-apply + re-deploy), reachable at its public URL
+- [x] All Success Criteria checkboxes in `SPEC-azure-deployment.md` verified true
+- [x] Full test suite passes (`pytest`, `npm run test`, optionally `npm run test:e2e`)
+- [x] Live deployment stands (post-Task-15 re-apply + re-deploy), reachable at its public URL
 - [ ] Cost view checked a few days later against the spec's ~$0.01-0.06/month estimate (follow-up, not a same-day blocker)
+
+---
+
+## FINAL RESULTS (all tasks complete)
+
+**Live:** https://kind-beach-04e83b00f.7.azurestaticapps.net
+**Backend:** https://ca-docaudit-backend-prod-ne.livelydune-e0ace597.northeurope.azurecontainerapps.io
+
+14 Terraform-managed resources, zero drift. 21 tests green (15 pytest + 6 vitest).
+
+**Task 10** — keys disabled at the platform level, not by convention: `az storage blob list --auth-mode key` is refused with `KeyBasedAuthenticationNotPermitted`. Backend identity holds exactly one grant, `Storage Blob Data Reader`, scoped to the container. Two things the plan did not anticipate: disabling shared keys leaves the provider no fallback, so `storage_use_azuread = true` was required, and Terraform's own identity needed `Storage Blob Data Contributor` to write blobs — subscription Owner is control-plane only. Also migrated `storage_account_name` → `storage_container_id` on the blob resource (deprecated, removed in provider v5); no replacement, plan stayed empty.
+
+**Task 12** — `/scan` and `/overview` both return 200 and serve the app HTML live. Assets excluded from the rewrite so a genuinely missing file still 404s instead of silently returning index.html.
+
+**Task 13** — deployed, full audit verified end-to-end in a real browser: 4 API calls all 200 including `/audit`, zero CORS failures, zero console errors, risk posture rendered (79/100 Critical, 13 claims). Cold-start notice captured on screen with the approved copy. Wired at the `request()` choke point every call already routes through, surfaced via the existing `backendStatus`/`BackendStatusPanel` pattern rather than a parallel component — that panel is already `aria-live`. Signal clears on failure too, since a stuck banner is worse than none. **Bug found and fixed in passing:** the status panel hardcoded "connected on port 8010", the local dev port, which was visibly wrong on the deployed site.
+
+**Task 14** — no registry credentials, no secrets, no secret-bearing env vars on the Container App. No tfstate tracked by git; the local `.terraform/terraform.tfstate` is a backend pointer with all credential fields null and zero resources, and is gitignored.
+
+**Task 15** — destroy removed all 13 resources with zero orphans; the state backend (separate RG, created outside this config) survived untouched. Recreate restored all 13. **Both hostnames changed, exactly as the risk table predicted**, along with the managed identity's principal ID — which is why this task required a rebuild against the new FQDN and a redeploy, not just a re-apply. Post-recreate the full audit works again with zero CORS errors, keys are still disabled, all 3 blobs restored, the budget recreated cleanly (confirming the `timestamp()` start_date approach), and the new identity holds exactly one container-scoped grant. Zero drift after.
+
+**Task 16** — `docs/architecture-azure.md` documents what was actually built: no Key Vault box, since it was deferred. States the cold-start tradeoff plainly as a chosen decision with its reason.
+
+**Known open item:** the cost view should be checked in a few days against the ~$0.01–0.06/month estimate. Not a same-day blocker.

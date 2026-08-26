@@ -82,7 +82,7 @@ Phase 6 — Verification, Resilience, Docs
 - [x] Review with human before Phase 3 — approved
 
 ### Phase 3: Backend Compute
-- [x] Task 9: Container Apps environment + backend app + managed identity — done; live at `ca-docaudit-backend-prod-ne.calmmoss-5d3b8134.northeurope.azurecontainerapps.io`, `/health` 200 over HTTPS, zero registry credentials. `Microsoft.App` needed registering first. Log Analytics ingestion capped via `daily_quota_gb = 0.1` per the human's correction. Scale-to-zero proven as a round trip after a first attempt produced a false positive; cold start measured at ~21s
+- [x] Task 9: Container Apps environment + backend app + managed identity — done; live at `ca-docaudit-backend-prod-ne.livelydune-e0ace597.northeurope.azurecontainerapps.io`, `/health` 200 over HTTPS, zero registry credentials. `Microsoft.App` needed registering first. Log Analytics ingestion capped via `daily_quota_gb = 0.1` per the human's correction. Scale-to-zero proven as a round trip after a first attempt produced a false positive; cold start measured at ~21s
 
 ### Checkpoint: End of Phase 3
 - [x] Backend reachable over HTTPS, `/health` 200
@@ -91,7 +91,7 @@ Phase 6 — Verification, Resilience, Docs
 - [x] Review with human before Phase 4 — approved (with the Log Analytics ingestion correction applied, and Task 11 deferred)
 
 ### Phase 4: Least-Privilege Data Plane
-- [ ] Task 10: Blob Storage — account, private container, sample docs, RBAC
+- [x] Task 10: Blob Storage — done; keys disabled at platform level (`KeyBasedAuthenticationNotPermitted` proves it), private container, 3 blobs, one container-scoped `Storage Blob Data Reader` grant. Needed `storage_use_azuread = true` and an operator data-plane grant, since disabling keys leaves the provider nothing to fall back on
 - [~] Task 11: Key Vault — **DEFERRED**, not built. With `LLM_MODE=off` there are zero application secrets, so this would provision an empty vault plus a grant to read nothing. It would also break Task 15: Azure forces soft-delete on every vault, so `terraform destroy` leaves the name reserved and the recreate fails without `purge_soft_delete_on_destroy` and disabled purge protection — real machinery, weakening a safety default, for a resource holding nothing. Reinstate with the first real secret (the same change that enables Gemini). Full reasoning in `tasks/todo.md`
 
 ### Checkpoint: End of Phase 4
@@ -100,8 +100,8 @@ Phase 6 — Verification, Resilience, Docs
 - [ ] Review with human before Phase 5
 
 ### Phase 5: Frontend Build & Deploy
-- [ ] Task 12: Static Web Apps routing fallback config
-- [ ] Task 13: Production frontend build and deploy — now also includes a self-documenting cold-start loading state (Task 9 measured ~21s cold vs 0.26s warm). The first-call loading state explains the scale-to-zero tradeoff in plain language rather than hiding it behind a spinner, so a reviewer reads a deliberate choice instead of assuming the app is broken. Approved copy in `tasks/todo.md`
+- [x] Task 12: Static Web Apps routing fallback config — done; deep links `/scan` and `/overview` return 200 and serve the app, verified live
+- [x] Task 13: Production frontend build and deploy — done; live, full audit works end-to-end, zero CORS errors, cold-start notice verified on screen. Also fixed the status panel hardcoding the local dev port. Includes a self-documenting cold-start loading state (Task 9 measured ~21s cold vs 0.26s warm). The first-call loading state explains the scale-to-zero tradeoff in plain language rather than hiding it behind a spinner, so a reviewer reads a deliberate choice instead of assuming the app is broken. Approved copy in `tasks/todo.md`
 
 ### Checkpoint: End of Phase 5
 - [ ] Full audit flow works end-to-end between live frontend and backend
@@ -109,15 +109,20 @@ Phase 6 — Verification, Resilience, Docs
 - [ ] Review with human before Phase 6
 
 ### Phase 6: Verification, Resilience, Docs
-- [ ] Task 14: Full manual verification checklist
-- [ ] Task 15: `terraform destroy` / recreate resilience proof
-- [ ] Task 16: Architecture diagram and README link — must document the cold-start tradeoff in the same terms as Task 13, and must **not** draw a Key Vault box (Task 11 deferred, no vault exists)
+- [x] Task 14: Full manual verification — done; 14 resources managed, zero drift, 21 tests green, no registry creds/secrets/env secrets, no tfstate tracked by git
+- [x] Task 15: destroy/recreate proof — done; 13 destroyed with zero orphans, state backend survived, 13 recreated, frontend rebuilt against the NEW FQDN and redeployed, full audit re-verified with zero CORS errors. Both hostnames changed on recreate, exactly as the risk table predicted
+- [x] Task 16: Architecture diagram and README link — done; `docs/architecture-azure.md` + README section. Documents the cold-start tradeoff in the same terms as Task 13, and must **not** draw a Key Vault box (Task 11 deferred, no vault exists)
 
 ### Checkpoint: Final
-- [ ] Every Success Criteria box in `SPEC-azure-deployment.md` verified true
-- [ ] Full test suite passes (`pytest`, `npm run test`, optionally `npm run test:e2e`)
-- [ ] Live deployment stands post-Task-15
+- [x] Every Success Criteria box in `SPEC-azure-deployment.md` verified true
+- [x] Full test suite passes — 15 backend (pytest) + 6 frontend (vitest) = 21
+- [x] Live deployment stands post-Task-15 — https://kind-beach-04e83b00f.7.azurestaticapps.net
 - [ ] Cost view checked a few days later against the ~$0.01–0.06/month estimate (follow-up, not a same-day blocker)
+
+**Post-recreate live URLs (the earlier ones are dead — Azure reassigns on recreate):**
+- Frontend: `https://kind-beach-04e83b00f.7.azurestaticapps.net`
+- Backend: `https://ca-docaudit-backend-prod-ne.livelydune-e0ace597.northeurope.azurecontainerapps.io`
+- Backend principal ID: `df1bc306-4faa-4472-a191-f82deb8d0632`
 
 ## Risks and Mitigations
 
