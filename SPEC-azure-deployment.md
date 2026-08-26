@@ -62,7 +62,7 @@ infra/
   backend.tf                 → empty `backend "azurerm" {}` block; values supplied via -backend-config=backend.hcl
   backend.hcl                → committed; state storage account/container/RG names (not secrets)
   main.tf                    → resource group, tags
-  container_app.tf           → Container Apps environment, Log Analytics workspace (capped retention), backend container app, managed identity
+  container_app.tf           → Container Apps environment, Log Analytics workspace (capped ingestion + retention), backend container app, managed identity
   static_web_app.tf          → Static Web App resource
   storage.tf                 → storage account + private container, sample-doc upload, RBAC role assignment (Storage Blob Data Reader → backend identity)
   key_vault.tf                → Key Vault (RBAC mode) + RBAC role assignment, provisioned now and empty; Gemini secret resource is conditional (created only once var.gemini_api_key is supplied)
@@ -167,7 +167,7 @@ Concretely:
 | Resource | Idle | Light demo traffic |
 |---|---|---|
 | Container Apps (Consumption, min=0) | $0 — no vCPU/memory billed while scaled to zero | ~$0 — a few dozen requests/day is far inside the permanent free grant (180k vCPU-s / 360k GiB-s / 2M requests per month) |
-| Log Analytics workspace (required by Container Apps env) | $0 | $0 — well under the 5 GB/month free ingestion; retention capped at 30 days to keep it that way |
+| Log Analytics workspace (required by Container Apps env) | $0 | $0 — well under the 5 GB/month free ingestion, enforced by `daily_quota_gb = 0.1`, which **halts** ingestion when hit rather than billing. Retention is a separate meter and does not bound ingestion; `retention_in_days = 30` is set on its own merits (first 31 days are free) |
 | GitHub Container Registry | $0 | $0 — free for public packages, unlimited bandwidth |
 | Azure Static Web Apps (Free tier) | $0 | $0 — 100 GB/month bandwidth included, hard-capped not billed |
 | Blob Storage (a few small sample docs) | ~$0.00 | ~$0.00–0.01 — storage + read-op cost on a handful of KB-sized files rounds to fractions of a cent |

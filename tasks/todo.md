@@ -242,7 +242,7 @@ Standing instruction for every task that writes a `.tf` file: invoke `full-outpu
 
 **Finding — a hardcoded `start_date` would have broken Task 15.** Azure requires a Monthly budget's start date to be the first of a month, and a *past* start date must fall within the current time grain — effectively the first of the current month. A literal `"2026-08-01T00:00:00Z"` therefore applies cleanly today and then fails on create the first time the stack is destroyed and recreated in any later month, which is exactly what Task 15's destroy/recreate proof does. `start_date` is instead derived as `formatdate("YYYY-MM-01'T'00:00:00'Z'", timestamp())`, so every fresh create computes a valid date. `timestamp()` is normally a perpetual-diff trap; `lifecycle { ignore_changes = [time_period[0].start_date] }` neutralises it, and this was verified rather than assumed — the post-apply plan is empty.
 
-**Note for Task 15:** an Azure budget only *alerts*. It never caps, throttles, or deletes anything. Nothing in this stack stops spend automatically; scale-to-zero is what actually keeps the bill near zero.
+**Note — budgets alert, they never cap.** An Azure budget never throttles, stops, or deletes anything; it only emails. The one hard spend stop in this entire stack is `daily_quota_gb` on the Task 9 Log Analytics workspace, which actually halts ingestion when hit. Scale-to-zero keeps compute near zero, but that is a consequence of no traffic rather than an enforced ceiling. Worth remembering at Task 15 and when reading the cost estimate.
 
 ---
 
@@ -258,11 +258,18 @@ Standing instruction for every task that writes a `.tf` file: invoke `full-outpu
 
 ### Task 9: Container Apps environment + backend Container App + managed identity
 
-**Description:** The graph's pinch point — depends on Task 3 (RG), Task 6 (pushed image), and Task 7 (SWA hostname for CORS). `container_app.tf` holds three tightly-coupled resources: `azurerm_log_analytics_workspace` (`retention_in_days = 30` — keeps ingestion inside the free 5GB/month grant), `azurerm_container_app_environment` (referencing the workspace), and `azurerm_container_app` with `identity { type = "SystemAssigned" }`, `min_replicas = 0`, `max_replicas = 2`, image from GHCR at the Task 6 tag, and an `ingress` block (`external_enabled = true`, `target_port = 8000`, `transport = "auto"` — without this there's no public FQDN at all). Env vars: `LLM_MODE=off`, `FRONTEND_ORIGIN=https://${azurerm_static_web_app.this.default_host_name}` (wires Task 4's code to Task 7's resource).
+**Description:** The graph's pinch point — depends on Task 3 (RG), Task 6 (pushed image), and Task 7 (SWA hostname for CORS). `container_app.tf` holds three tightly-coupled resources: `azurerm_log_analytics_workspace` (`daily_quota_gb = 0.1` to cap ingestion, plus `retention_in_days = 30`), `azurerm_container_app_environment` (referencing the workspace), and `azurerm_container_app` with `identity { type = "SystemAssigned" }`, `min_replicas = 0`, `max_replicas = 2`, image from GHCR at the Task 6 tag, and an `ingress` block (`external_enabled = true`, `target_port = 8000`, `transport = "auto"` — without this there's no public FQDN at all). Env vars: `LLM_MODE=off`, `FRONTEND_ORIGIN=https://${azurerm_static_web_app.this.default_host_name}` (wires Task 4's code to Task 7's resource).
 
 Reasonable to land as two commits internally (workspace+environment, then the app) while remaining one task/one verification pass, per the ~100-line-per-commit guidance.
 
+**Correction (human, before implementation) — retention does not bound ingestion.** The original card claimed `retention_in_days = 30` "keeps ingestion inside the free 5GB/month grant". That is wrong: retention and ingestion are **separate meters**. `retention_in_days` controls how long data is *kept* once ingested; the free 5GB/month grant is on *ingestion*, and retention settings do not constrain it at all. As originally written, nothing in this stack bounded log volume — a chatty container could have ingested well past the grant and billed for it.
+
+The actual control is `daily_quota_gb` on the workspace. Set to `0.1` — ample for one demo app, and when the cap is hit ingestion **stops** for the remainder of the UTC day rather than continuing to bill. `retention_in_days = 30` is kept as well, on its own merits: the first 31 days of retention are free, so 30 costs nothing and is worth having.
+
+**This is the only hard spend stop anywhere in the stack.** The Task 8 budget *alerts* — it never caps, throttles, or deletes. `daily_quota_gb` is the single control in this architecture that actually halts a cost rather than emailing about it. Scale-to-zero keeps compute near zero by design, but it is a consequence of no traffic, not an enforced ceiling.
+
 **Acceptance criteria:**
+- [ ] `daily_quota_gb` set on the Log Analytics workspace (ingestion hard-capped, not merely retained for 30 days)
 - [ ] System-assigned managed identity present, no registry credentials configured anywhere (image pulled anonymously)
 - [ ] `min_replicas = 0`, `max_replicas = 2`
 - [ ] Ingress external, HTTPS
