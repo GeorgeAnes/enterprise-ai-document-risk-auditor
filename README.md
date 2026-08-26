@@ -87,7 +87,7 @@ reproducibility proof: **[docs/architecture-azure.md](docs/architecture-azure.md
 
 ## Screenshot
 
-The dark risk-intelligence dashboard is generated locally from synthetic samples.
+The dark risk-intelligence dashboard, captured from the live Azure deployment. All documents shipped with the project are synthetic.
 
 ![Dashboard screenshot](docs/screenshot-dashboard.png)
 
