@@ -213,33 +213,44 @@ Standing instruction for every task that writes a `.tf` file: invoke `full-outpu
 
 ---
 
-### Task 8: Cost Management budget alert
+### Task 8: Cost Management budget alert — DONE
 
 **Description:** `azurerm_consumption_budget_resource_group` scoped to `rg-docaudit-prod-ne`, $5/month threshold. Needs a notification contact email variable — no committed default; the real value goes in the operator's own gitignored `terraform.tfvars`.
 
 **Acceptance criteria:**
-- [ ] Budget scoped to the resource group only (not subscription-wide)
-- [ ] Notification threshold at $5/month, contact email sourced from a new `variables.tf` entry with no default, never committed with a real value
+- [x] Budget scoped to the resource group only (not subscription-wide) — verified: the only budget on the subscription is `.../resourceGroups/rg-docaudit-prod-ne/providers/Microsoft.Consumption/budgets/budget-docaudit-prod-ne`
+- [x] $5/month cap, contact email from a new `variables.tf` entry with no default; only the `you@example.com` placeholder is committed, real address lives in gitignored `terraform.tfvars` (confirmed via `git check-ignore`)
 
 **Verification:**
-- [ ] `terraform apply -var-file=terraform.tfvars`
-- [ ] `az consumption budget list -g rg-docaudit-prod-ne` shows the budget with the configured threshold
+- [x] `terraform plan` reviewed (1 to add, 0 change, 0 destroy), then applied
+- [x] `az consumption budget list -g rg-docaudit-prod-ne` → `budget-docaudit-prod-ne`, amount 5.0, Monthly, category Cost, start `2026-08-01T00:00:00Z`
+- [x] Both notifications live: `actual_GreaterThan_25.000000_Percent` and `forecasted_GreaterThan_100.000000_Percent`
+- [x] No perpetual diff — follow-up `terraform plan -detailed-exitcode` returned "No changes", exit 0
 
 **Dependencies:** Task 3
 
-**Files likely touched:**
-- `infra/budget.tf`
-- `infra/variables.tf`
+**Files touched:**
+- `infra/budget.tf` (new)
+- `infra/variables.tf` (added `budget_amount`, `budget_contact_email`)
+- `infra/terraform.tfvars.example` (placeholder email)
 
-**Estimated scope:** Small (2 files)
+**Estimated scope:** Small (2 files) — actual: 3 files
+
+**Outcome:** `budget-docaudit-prod-ne`, commit `43b677e`. Budgets are free.
+
+**Decision — thresholds at 25% actual and 100% forecasted, not just 100%.** The spec estimates ~$0.01–0.06/month, so the $5 cap is ~80x expected spend: it is a runaway-detector, not a real budget. Alerting only at 100% would mean finding out after $5 is already gone. 25% actual ($1.25) is still ~20x the estimate, so it should never fire on ordinary usage, and it fires while the absolute loss is about a dollar. The forecasted alert catches a bad trend before it reaches the cap at all.
+
+**Finding — a hardcoded `start_date` would have broken Task 15.** Azure requires a Monthly budget's start date to be the first of a month, and a *past* start date must fall within the current time grain — effectively the first of the current month. A literal `"2026-08-01T00:00:00Z"` therefore applies cleanly today and then fails on create the first time the stack is destroyed and recreated in any later month, which is exactly what Task 15's destroy/recreate proof does. `start_date` is instead derived as `formatdate("YYYY-MM-01'T'00:00:00'Z'", timestamp())`, so every fresh create computes a valid date. `timestamp()` is normally a perpetual-diff trap; `lifecycle { ignore_changes = [time_period[0].start_date] }` neutralises it, and this was verified rather than assumed — the post-apply plan is empty.
+
+**Note for Task 15:** an Azure budget only *alerts*. It never caps, throttles, or deletes anything. Nothing in this stack stops spend automatically; scale-to-zero is what actually keeps the bill near zero.
 
 ---
 
 ## Checkpoint: End of Phase 2
-- [ ] SWA resource live, default hostname resolves
-- [ ] Budget alert visible in Cost Management
-- [ ] `terraform validate` clean with RG + SWA + budget all defined
-- [ ] Review with human before proceeding to Phase 3
+- [x] SWA resource live, default hostname resolves — `ambitious-glacier-0ef327a0f.7.azurestaticapps.net`, HTTPS 200
+- [x] Budget alert visible in Cost Management — `budget-docaudit-prod-ne`, $5/month, RG-scoped
+- [x] `terraform validate` clean with RG + SWA + budget all defined; `terraform fmt -check` clean; post-apply plan empty
+- [ ] Review with human before proceeding to Phase 3 — **AWAITING**
 
 ---
 

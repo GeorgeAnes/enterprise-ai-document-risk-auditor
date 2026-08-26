@@ -73,13 +73,13 @@ Phase 6 — Verification, Resilience, Docs
 
 ### Phase 2: Independent Infra Shells
 - [x] Task 7: Static Web App resource — done; `swa-docaudit-prod-eus2` live, hostname resolves 200 over HTTPS. SWA exists in only 5 regions and `northeurope` is not one, so it needed its own location variable; `westeurope` refused new customers (same 403 as Task 1), so it landed in `eastus2` — serving is CDN-global, so no latency or residency impact
-- [ ] Task 8: Cost Management budget alert
+- [x] Task 8: Cost Management budget alert — done; `budget-docaudit-prod-ne`, $5/month RG-scoped, alerts at 25% actual and 100% forecasted. `start_date` derived from `timestamp()` + `ignore_changes` rather than hardcoded — a fixed date would fail on any destroy/recreate in a later month, which Task 15 requires
 
 ### Checkpoint: End of Phase 2
-- [ ] SWA hostname resolves over HTTPS
-- [ ] Budget visible in Cost Management
-- [ ] `terraform validate` clean
-- [ ] Review with human before Phase 3
+- [x] SWA hostname resolves over HTTPS
+- [x] Budget visible in Cost Management
+- [x] `terraform validate` clean
+- [ ] Review with human before Phase 3 — **AWAITING**
 
 ### Phase 3: Backend Compute
 - [ ] Task 9: Container Apps environment + backend app + managed identity
