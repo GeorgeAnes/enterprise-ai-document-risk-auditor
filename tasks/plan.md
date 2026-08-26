@@ -2,7 +2,7 @@
 
 ## Overview
 
-`SPEC-azure-deployment.md` (approved) defines the target architecture for deploying the Document Risk Auditor (FastAPI + React) to Azure at $0/month idle cost: Container Apps (backend, scale-to-zero) + Static Web Apps (frontend, free) + Blob Storage (samples) + Key Vault (empty for now, `LLM_MODE=off`) + remote Terraform state, all least-privilege via managed identity/RBAC, no keys or secrets anywhere.
+`SPEC-azure-deployment.md` (approved) defines the target architecture for deploying the Document Risk Auditor (FastAPI + React) to Azure at $0/month idle cost: Container Apps (backend, scale-to-zero) + Static Web Apps (frontend, free) + Blob Storage (samples) + remote Terraform state, all least-privilege via managed identity/RBAC, no keys or secrets anywhere. (Key Vault was in the approved spec but is **deferred** — see Deferred Scope below — because `LLM_MODE=off` leaves no secret to store.)
 
 This plan turns that spec into an ordered, vertically-sliced task breakdown (full task cards in `tasks/todo.md`). Research (one Explore pass over the actual codebase, one Plan pass cross-referencing it against the spec) surfaced three gaps the spec didn't cover, because they only become visible once you trace the real code paths:
 
@@ -21,7 +21,7 @@ One more decided directly (low-stakes, no real tradeoff): Docker images are tagg
 ## Architecture Decisions
 
 - **Static Web App is provisioned before the Container App** (reorders the spec's illustrative file list into the real apply order) — the backend's CORS config needs the SWA's Azure-generated hostname, which doesn't exist until the SWA resource does.
-- **Storage + Key Vault RBAC land in their own phase, after the Container App**, not bundled with the resource group — both role assignments need the backend's managed identity's principal ID, which doesn't exist until the Container App is created.
+- **Storage RBAC lands in its own phase, after the Container App**, not bundled with the resource group — the role assignment needs the backend's managed identity's principal ID, which doesn't exist until the Container App is created. (Originally "Storage + Key Vault"; Key Vault is now deferred.)
 - **`shared_access_key_enabled = false`** on the storage account — turns "we don't use storage keys" from convention into a platform-enforced guarantee.
 - **Sample blob uploads via `for_each` over `fileset()`**, not three hardcoded resource blocks.
 - **The Static Web App is the one resource that cannot use `var.location`** (discovered in Task 7) — SWA is offered in only five regions, none of them `northeurope`, and the sole EU entry (`westeurope`) refuses new customers on this subscription. It takes a separate `static_web_app_location` variable defaulting to `eastus2` while still living in the `northeurope` resource group.
@@ -41,17 +41,17 @@ Phase 2 — Independent Infra Shells (both depend only on T3)
 Phase 3 — Backend Compute (pinch point)
   T9 container_app.tf  ◀── T3 (RG) + T6 (image) + T7 (SWA hostname, for CORS)
 
-Phase 4 — Least-Privilege Data Plane (parallel, both depend on T9's managed identity)
-  T10 storage.tf              T11 key_vault.tf
+Phase 4 — Least-Privilege Data Plane (depends on T9's managed identity)
+  T10 storage.tf              [T11 key_vault.tf -- DEFERRED, not built]
 
 Phase 5 — Frontend Build & Deploy
   T12 staticwebapp.config.json (no deps)
   T13 build + swa deploy  ◀── T9 (FQDN) + T7 (deploy token) + T12 (routing config)
 
 Phase 6 — Verification, Resilience, Docs
-  T14 full verification  ◀── T9, T10, T11, T13
+  T14 full verification  ◀── T9, T10, T13
   T15 destroy/recreate proof  ◀── T14
-  T16 architecture diagram + README link  ◀── T7, T9, T10, T11, T13
+  T16 architecture diagram + README link  ◀── T7, T9, T10, T13
 ```
 
 ## Task List (index — full cards in `tasks/todo.md`)
@@ -79,7 +79,7 @@ Phase 6 — Verification, Resilience, Docs
 - [x] SWA hostname resolves over HTTPS
 - [x] Budget visible in Cost Management
 - [x] `terraform validate` clean
-- [ ] Review with human before Phase 3 — **AWAITING**
+- [x] Review with human before Phase 3 — approved
 
 ### Phase 3: Backend Compute
 - [x] Task 9: Container Apps environment + backend app + managed identity — done; live at `ca-docaudit-backend-prod-ne.calmmoss-5d3b8134.northeurope.azurecontainerapps.io`, `/health` 200 over HTTPS, zero registry credentials. `Microsoft.App` needed registering first. Log Analytics ingestion capped via `daily_quota_gb = 0.1` per the human's correction. Scale-to-zero proven as a round trip after a first attempt produced a false positive; cold start measured at ~21s
@@ -88,20 +88,20 @@ Phase 6 — Verification, Resilience, Docs
 - [x] Backend reachable over HTTPS, `/health` 200
 - [x] No credentials in `az containerapp show`
 - [x] Scale-to-zero behaviourally proven (0 → 1 → 0), not inferred from config
-- [ ] Review with human before Phase 4 — **AWAITING**
+- [x] Review with human before Phase 4 — approved (with the Log Analytics ingestion correction applied, and Task 11 deferred)
 
 ### Phase 4: Least-Privilege Data Plane
 - [ ] Task 10: Blob Storage — account, private container, sample docs, RBAC
-- [ ] Task 11: Key Vault — RBAC mode, RBAC grant, conditional Gemini secret
+- [~] Task 11: Key Vault — **DEFERRED**, not built. With `LLM_MODE=off` there are zero application secrets, so this would provision an empty vault plus a grant to read nothing. It would also break Task 15: Azure forces soft-delete on every vault, so `terraform destroy` leaves the name reserved and the recreate fails without `purge_soft_delete_on_destroy` and disabled purge protection — real machinery, weakening a safety default, for a resource holding nothing. Reinstate with the first real secret (the same change that enables Gemini). Full reasoning in `tasks/todo.md`
 
 ### Checkpoint: End of Phase 4
-- [ ] Backend identity has exactly two RBAC grants, both resource-scoped
+- [ ] Backend identity has exactly **one** RBAC grant (`Storage Blob Data Reader`, container-scoped) — revised from two, Task 11 deferred
 - [ ] No keys/SAS/access-policies anywhere
 - [ ] Review with human before Phase 5
 
 ### Phase 5: Frontend Build & Deploy
 - [ ] Task 12: Static Web Apps routing fallback config
-- [ ] Task 13: Production frontend build and deploy
+- [ ] Task 13: Production frontend build and deploy — now also includes a self-documenting cold-start loading state (Task 9 measured ~21s cold vs 0.26s warm). The first-call loading state explains the scale-to-zero tradeoff in plain language rather than hiding it behind a spinner, so a reviewer reads a deliberate choice instead of assuming the app is broken. Approved copy in `tasks/todo.md`
 
 ### Checkpoint: End of Phase 5
 - [ ] Full audit flow works end-to-end between live frontend and backend
@@ -111,7 +111,7 @@ Phase 6 — Verification, Resilience, Docs
 ### Phase 6: Verification, Resilience, Docs
 - [ ] Task 14: Full manual verification checklist
 - [ ] Task 15: `terraform destroy` / recreate resilience proof
-- [ ] Task 16: Architecture diagram and README link
+- [ ] Task 16: Architecture diagram and README link — must document the cold-start tradeoff in the same terms as Task 13, and must **not** draw a Key Vault box (Task 11 deferred, no vault exists)
 
 ### Checkpoint: Final
 - [ ] Every Success Criteria box in `SPEC-azure-deployment.md` verified true
@@ -130,6 +130,10 @@ Phase 6 — Verification, Resilience, Docs
 | `azurerm ~> 4.0` floating constraint drifts between plan and implementation | Minor attribute drift | `.terraform.lock.hcl` committed after first `init`, pins the exact resolved version |
 | Careless `FRONTEND_ORIGIN` implementation breaks local dev/docker-compose/tests | Violates "no commit without passing test suite" | T4's acceptance criteria require the existing dev origins keep working with the env var unset, TDD'd |
 | SWA deployment token leaks via logs/shell history/a committed file | Full write access to site content | **Revised in Task 7** — `sensitive = true` alone is NOT sufficient: it only redacts the bulk `terraform output` form, while `terraform output <name>` prints the secret in the clear (this leaked the token once; rotated via `az staticwebapp secrets reset-api-key`). Real mitigation: only ever `terraform output -raw <name>` piped straight into the consuming command, plus `tfplan*` gitignored (a saved plan embeds the token) |
+
+## Deferred Scope
+
+- **Task 11 (Key Vault)** — deferred 2026-08-26 until a real secret exists. Deferring also avoids adding Key Vault soft-delete handling to Task 15's destroy/recreate proof. The spec still describes Key Vault as the intended secret-handling design; it is simply not provisioned yet, and the Task 16 diagram must reflect what was built.
 
 ## Verification (end-to-end, after all tasks)
 

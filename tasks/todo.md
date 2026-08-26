@@ -342,33 +342,28 @@ Re-verified properly as a full round trip, with `--query "length(@)"` so a comma
 
 ---
 
-### Task 11: Key Vault — RBAC mode, RBAC grant, conditional Gemini secret
+### Task 11: Key Vault — DEFERRED (not built)
 
-**Description:** `azurerm_key_vault` (Standard tier, `enable_rbac_authorization = true` — not access policies). RBAC role assignment `Key Vault Secrets User` → backend identity, scoped to the vault, created now regardless of Gemini status. The Gemini secret resource itself is written now but conditional: `count = var.gemini_api_key != null ? 1 : 0`, so it evaluates to zero instances for this deployment (`LLM_MODE=off`) without any future re-architecture needed to turn it on. New `variables.tf` entry: `gemini_api_key`, `type = string`, `sensitive = true`, `default = null`.
+**Status: deferred by decision, 2026-08-26.** Not descoped permanently — deferred until an actual secret exists. Reinstate this card verbatim at that point.
 
-**Acceptance criteria:**
-- [ ] Key Vault uses RBAC authorization mode (`enable_rbac_authorization = true`)
-- [ ] Role assignment (`Key Vault Secrets User`) exists and is scoped to this vault only
-- [ ] Zero secrets exist in the vault for this deployment
+**Original description:** `azurerm_key_vault` (Standard tier, `enable_rbac_authorization = true` — not access policies). RBAC role assignment `Key Vault Secrets User` → backend identity, scoped to the vault. Gemini secret written now but conditional: `count = var.gemini_api_key != null ? 1 : 0`. New `variables.tf` entry: `gemini_api_key`, sensitive, default `null`.
 
-**Verification:**
-- [ ] `terraform plan -var-file=terraform.tfvars` reviewed, then `apply`
-- [ ] `az keyvault show --name <vault>` confirms `--enable-rbac-authorization true`
-- [ ] `az keyvault secret list --vault-name <vault>` returns empty
-- [ ] `az role assignment list --assignee <backend-principal-id>` now shows two grants total (Storage + Key Vault), nothing broader
+**Why deferred:**
 
-**Dependencies:** Task 9
+1. **There is nothing to put in it.** With `LLM_MODE=off` there are zero application secrets. `GEMINI_API_KEY` is deferred by that same decision; storage keys are deliberately disabled in favour of RBAC (Task 10, `shared_access_key_enabled = false`); the SWA deployment token is a Terraform output that the application never reads. The planned secret resource was already `count = ... ? 1 : 0` — zero instances by construction. The task would provision an empty vault plus a `Key Vault Secrets User` grant to read nothing, and its acceptance criterion would literally be "confirm the vault is empty."
 
-**Files likely touched:**
-- `infra/key_vault.tf`
-- `infra/variables.tf`
+2. **It would actively damage Task 15.** Azure enforces soft-delete on every Key Vault — it cannot be disabled, and retention is 7–90 days. `terraform destroy` therefore does *not* cleanly remove a vault: the name stays reserved in a soft-deleted state, and the recreate half of the resilience proof fails unless the config also sets `purge_protection_enabled = false` and the provider gains `features { key_vault { purge_soft_delete_on_destroy = true } }`. That is real machinery, and it means weakening a safety default, in order to support a resource holding nothing. It conflicts directly with the spec's hard constraint that `terraform destroy` cleanly removes every resource it created.
 
-**Estimated scope:** Small (2 files)
+3. **The security story does not depend on it.** Task 10 already demonstrates managed identity + resource-scoped RBAC + zero keys, with an acceptance criterion that can actually be proven. A Key Vault would be a second instance of the same pattern, empty.
+
+**Reinstate when:** the first real secret appears — in practice the same change that sets `LLM_MODE=gemini` and introduces `GEMINI_API_KEY`. At that point the vault, the `Key Vault Secrets User` grant, and the Container App `secret` block referencing it all land together and can be verified end to end, and the Task 15 soft-delete handling gets added deliberately rather than pre-emptively.
+
+**Consequence for the spec:** `SPEC-azure-deployment.md` lists Key Vault in its architecture and IAM table. It stays in the spec as the intended design for secret handling, annotated as not-yet-provisioned. The Task 16 architecture diagram must show the *built* system, so it must not draw a Key Vault box as though one exists.
 
 ---
 
 ## Checkpoint: End of Phase 4
-- [ ] Backend identity has exactly two RBAC role assignments (`Storage Blob Data Reader` on the container, `Key Vault Secrets User` on the vault) — confirm via `az role assignment list --assignee <principal-id>` that nothing subscription- or RG-scoped exists
+- [ ] Backend identity has exactly **one** RBAC role assignment (`Storage Blob Data Reader`, scoped to the samples container) — revised from "two" now that Task 11 is deferred. Confirm via `az role assignment list --assignee <principal-id>` that nothing subscription- or RG-scoped exists
 - [ ] No storage keys, SAS tokens, or Key Vault access policies exist anywhere
 - [ ] Review with human before proceeding to Phase 5
 
@@ -411,12 +406,24 @@ Re-verified properly as a full round trip, with `--query "length(@)"` so a comma
 - [ ] Run the sample audit end-to-end (select a sample, run scan) — network tab shows successful calls to the backend FQDN with no CORS errors
 - [ ] Direct navigation to `/overview` (not just client-side routing to it) loads correctly, proving Task 12's fallback works in production
 
+**Added scope — self-documenting cold start (decided 2026-08-26).** Task 9 measured a ~21s cold start (warm: 0.26s), the direct cost of `min_replicas = 0`. This is **not** to be hidden behind a generic spinner. The frontend must show a loading state on the first API call that explains the tradeoff, so a reviewer learns it was a deliberate engineering choice rather than concluding the app is broken. Approved copy, to use near-verbatim:
+
+> Waking the backend — this deployment scales to zero when idle, so the first request after a quiet period takes ~20s. Subsequent requests are under 300ms. That tradeoff is why this runs at €0/month.
+
+Implementation notes: applies to the first API call of a session (a cheap approach is to show it when a request exceeds ~1.5s rather than trying to track cold vs. warm state); it should not appear on every subsequent fast request. Keep the numbers honest — if the measured cold start drifts materially from ~20s, update the copy rather than leaving a stale claim.
+
+**Additional acceptance criteria:**
+- [ ] First-call loading state renders the cold-start explanation, not a bare spinner
+- [ ] The message does not appear on fast/warm requests
+- [ ] Quoted timings match what Task 14 actually measures
+
 **Dependencies:** Task 9, Task 7, Task 12
 
 **Files likely touched:**
-- None required; optionally `frontend/package.json` gets a convenience `"deploy"` script wrapping the two commands (no new dependency, just a script alias)
+- `frontend/src/` — loading state on the first API call (component + wherever `api.ts` calls are awaited)
+- None required otherwise; optionally `frontend/package.json` gets a convenience `"deploy"` script wrapping the two commands (no new dependency, just a script alias)
 
-**Estimated scope:** Small (0-1 files)
+**Estimated scope:** Small (0-1 files) — revised: Small–Medium, now includes a frontend loading state
 
 ---
 
@@ -482,11 +489,22 @@ Re-verified properly as a full round trip, with `--query "length(@)"` so a comma
 - [ ] `docs/architecture-azure.md` diagram shows: browser → Static Web App → Container App (managed identity) → GHCR (image pull), Container App → Blob Storage (RBAC) → Key Vault (RBAC, provisioned/empty), remote state storage as a separate/dashed box (different lifecycle, not part of the destroyable stack)
 - [ ] README links to it and is accurate against what was actually built
 
+**Added scope — document the cold-start tradeoff on the project page (decided 2026-08-26).** The same explanation the frontend shows at runtime (Task 13) belongs in the written architecture notes, framed as a deliberate decision with a known cost:
+
+> The backend scales to zero when idle, so the first request after a quiet period takes ~20s while a container cold-starts; subsequent requests are under 300ms. That tradeoff is why this runs at €0/month.
+
+State it as a chosen tradeoff with its downside named, not as an apology or a caveat buried at the bottom. A reviewer who reads this learns the choice was made knowingly; a reviewer who just waits 21 seconds assumes the app is broken.
+
+**Additional acceptance criteria:**
+- [ ] Architecture doc explains scale-to-zero, the ~20s cold start, and why the tradeoff was taken
+- [ ] Quoted timings match Task 14's measurements
+- [ ] Diagram reflects what was actually built — **no Key Vault box**, since Task 11 is deferred and no vault exists
+
 **Verification:**
 - [ ] Mermaid renders correctly on GitHub
 - [ ] Link from README resolves
 
-**Dependencies:** Task 7, Task 9, Task 10, Task 11, Task 13
+**Dependencies:** Task 7, Task 9, Task 10, Task 13 (Task 11 deferred — not a dependency)
 
 **Files likely touched:**
 - `docs/architecture-azure.md`
