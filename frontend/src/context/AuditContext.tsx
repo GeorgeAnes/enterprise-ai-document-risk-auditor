@@ -1,5 +1,14 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { BACKEND_UNAVAILABLE_MESSAGE, auditDocument, checkHealth, fetchSample, fetchSamples } from "../api";
+import {
+  BACKEND_UNAVAILABLE_MESSAGE,
+  COLD_START_MESSAGE,
+  apiBaseUrl,
+  auditDocument,
+  checkHealth,
+  fetchSample,
+  fetchSamples,
+  onSlowRequest
+} from "../api";
 import { FALLBACK_SAMPLE, FALLBACK_SAMPLES, fallbackSampleById } from "../data/fallbackSamples";
 import type { AuditResponse, ClaimAudit, SampleInfo } from "../types";
 
@@ -55,9 +64,23 @@ export function AuditProvider({ children }: { children: ReactNode }) {
   const [backendStatus, setBackendStatus] = useState<BackendStatus>("checking");
   const [backendMessage, setBackendMessage] = useState("Checking FastAPI backend...");
   const [usingFallbackSample, setUsingFallbackSample] = useState(false);
+  const [coldStarting, setColdStarting] = useState(false);
 
   useEffect(() => {
     void bootstrapSamples();
+  }, []);
+
+  // Surface the cold-start explanation whenever any request outlives the
+  // slow threshold. Reuses the existing "checking" status so the message
+  // lands in BackendStatusPanel, which is already aria-live.
+  useEffect(() => {
+    return onSlowRequest((slow) => {
+      if (slow) {
+        setColdStarting(true);
+      } else {
+        setColdStarting(false);
+      }
+    });
   }, []);
 
   const highestRiskClaims = useMemo(() => {
@@ -118,7 +141,7 @@ export function AuditProvider({ children }: { children: ReactNode }) {
     try {
       await checkHealth();
       setBackendStatus("online");
-      setBackendMessage("FastAPI backend connected on port 8010.");
+      setBackendMessage(`Backend connected at ${apiBaseUrl()}.`);
 
       const sampleList = await fetchSamples();
       const nextSamples = sampleList.length > 0 ? sampleList : FALLBACK_SAMPLES;
@@ -183,7 +206,7 @@ export function AuditProvider({ children }: { children: ReactNode }) {
       setAudit(result);
       setSelectedClaimId(result.claims[0]?.id ?? "");
       setBackendStatus("online");
-      setBackendMessage("FastAPI backend connected on port 8010.");
+      setBackendMessage(`Backend connected at ${apiBaseUrl()}.`);
       return result;
     } catch (err) {
       const message = err instanceof Error ? err.message : "Audit failed.";
@@ -209,8 +232,11 @@ export function AuditProvider({ children }: { children: ReactNode }) {
     selectedClaimId,
     loading,
     error,
-    backendStatus,
-    backendMessage,
+    // A cold start outranks whatever the last health check concluded: the
+    // backend is genuinely being woken right now, and that is what the
+    // visitor needs told.
+    backendStatus: coldStarting ? "checking" : backendStatus,
+    backendMessage: coldStarting ? COLD_START_MESSAGE : backendMessage,
     usingFallbackSample,
     highestRiskClaims,
     selectedClaim,

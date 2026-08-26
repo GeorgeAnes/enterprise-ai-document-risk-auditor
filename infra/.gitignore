@@ -1,0 +1,24 @@
+# Terraform local working state -- the azurerm backend keeps the real state
+# remote, but ignore these anyway as defense in depth (e.g. someone runs
+# `terraform init` without -backend-config and gets a local state file).
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# Real variable values -- never commit these. The committed template is
+# terraform.tfvars.example (Task 3).
+*.tfvars
+!*.tfvars.example
+
+# Terraform crash logs
+crash.log
+crash.*.log
+
+# NOTE: .terraform.lock.hcl is intentionally NOT ignored -- it pins the
+# exact resolved provider version and must be committed.
+
+# Saved plan files -- a plan contains the full resource payload, including
+# values marked sensitive (e.g. the SWA deployment token).
+tfplan
+tfplan.*
+*.tfplan
