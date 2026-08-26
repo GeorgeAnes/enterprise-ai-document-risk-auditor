@@ -1,2 +1,6 @@
 location    = "northeurope"
 environment = "prod"
+
+# Receives budget threshold alerts. Put your real address in terraform.tfvars
+# (gitignored) -- this example file must keep the placeholder.
+budget_contact_email = "you@example.com"
