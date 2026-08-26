@@ -180,25 +180,36 @@ Standing instruction for every task that writes a `.tf` file: invoke `full-outpu
 
 ## Phase 2: Independent Infra Shells
 
-### Task 7: Static Web App resource
+### Task 7: Static Web App resource — DONE
 
 **Description:** Provision the SWA resource itself (Free tier), no content deployed yet — sequenced before the Container App specifically so its `default_host_name` exists and can be referenced as the Container App's CORS origin.
 
 **Acceptance criteria:**
-- [ ] `azurerm_static_web_app` created, Free SKU, tagged
-- [ ] `outputs.tf` exposes `default_host_name` (for Task 9's CORS reference) and the deployment token (`api_key` attribute, marked `sensitive = true`, needed by Task 13)
+- [x] `azurerm_static_web_app` created, Free SKU, tagged
+- [x] `outputs.tf` exposes `default_host_name` (for Task 9's CORS reference) and the deployment token (`api_key` attribute, marked `sensitive = true`, needed by Task 13)
 
 **Verification:**
-- [ ] `terraform plan -var-file=terraform.tfvars` reviewed, then `terraform apply -var-file=terraform.tfvars`
-- [ ] `az staticwebapp show -n <name> -g rg-docaudit-prod-ne` returns the resource; its default hostname resolves over HTTPS
+- [x] `terraform plan` reviewed (1 to add, 0 change, 0 destroy), then applied
+- [x] `az staticwebapp show -n swa-docaudit-prod-eus2 -g rg-docaudit-prod-ne` returns the resource, Free SKU, all three common tags present
+- [x] Hostname resolves over HTTPS: `https://ambitious-glacier-0ef327a0f.7.azurestaticapps.net` → 200, TLS verify 0
 
 **Dependencies:** Task 3
 
-**Files likely touched:**
-- `infra/static_web_app.tf`
+**Files touched:**
+- `infra/static_web_app.tf` (new)
 - `infra/outputs.tf`
+- `infra/variables.tf` (added `static_web_app_location`)
+- `infra/.gitignore` (ignore saved plan files)
 
-**Estimated scope:** Small (2 files)
+**Estimated scope:** Small (2 files) — actual: 4 files
+
+**Outcome:** `swa-docaudit-prod-eus2`, hostname `ambitious-glacier-0ef327a0f.7.azurestaticapps.net`, commit `2c2c34f`. Free SKU, $0/month.
+
+**Finding — SWA cannot live in `northeurope`.** Static Web Apps is offered in exactly five regions (`centralus`, `eastus2`, `westus2`, `westeurope`, `eastasia`), confirmed via `az provider show --namespace Microsoft.Web --query "resourceTypes[?resourceType=='staticSites'].locations"`. So this is the one resource in the stack that cannot inherit `var.location`; it needed its own `static_web_app_location` variable (with a `validation` block restricting it to those five). It still lives in the `rg-docaudit-prod-ne` resource group — only the resource's own region differs. `westeurope`, the only EU entry on that list, failed with the same `RequestDisallowedByAzure: The selected region is currently not accepting new customers` 403 that moved the stack off westeurope back in Task 1, leaving no EU option at all. Settled on `eastus2`. Serving is unaffected — SWA distributes content from a global CDN edge regardless of the resource's home region, and the latency-sensitive path (API calls) still terminates at the northeurope Container App. The bundle is static assets with no user data, so there is no data-residency consequence.
+
+**Finding — `terraform output <name>` does NOT redact sensitive values.** Only the bulk `terraform output` form redacts (it prints `static_web_app_deployment_token = <sensitive>`). Naming a specific output is treated by Terraform as explicit intent to read it, so `terraform output static_web_app_deployment_token` prints the secret in the clear — which is what happened during this task's verification, leaking the live token into the session log. Rotated immediately with `az staticwebapp secrets reset-api-key`, then `terraform refresh` to pull the new value into state. **For Task 13, always use `terraform output -raw ...` piped directly into the deploy command — never as a bare command whose output lands in a log.** Also added `tfplan*` to `infra/.gitignore`: a saved plan file embeds the deployment token in full.
+
+**Correction to the risk table:** the plan's mitigation for the token-leak risk was "output marked `sensitive = true`". That is necessary but *not* sufficient, as this task demonstrated — the marking does not protect a targeted `terraform output <name>`. The real mitigation is never materializing the token as standalone command output.
 
 ---
 

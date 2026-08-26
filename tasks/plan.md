@@ -24,6 +24,7 @@ One more decided directly (low-stakes, no real tradeoff): Docker images are tagg
 - **Storage + Key Vault RBAC land in their own phase, after the Container App**, not bundled with the resource group — both role assignments need the backend's managed identity's principal ID, which doesn't exist until the Container App is created.
 - **`shared_access_key_enabled = false`** on the storage account — turns "we don't use storage keys" from convention into a platform-enforced guarantee.
 - **Sample blob uploads via `for_each` over `fileset()`**, not three hardcoded resource blocks.
+- **The Static Web App is the one resource that cannot use `var.location`** (discovered in Task 7) — SWA is offered in only five regions, none of them `northeurope`, and the sole EU entry (`westeurope`) refuses new customers on this subscription. It takes a separate `static_web_app_location` variable defaulting to `eastus2` while still living in the `northeurope` resource group.
 - Standing instruction for every `.tf` file written during implementation: invoke `full-output-enforcement` — no truncated resource blocks, no placeholder comments.
 
 ## Dependency Graph
@@ -61,20 +62,17 @@ Phase 6 — Verification, Resilience, Docs
 - [x] Task 3: Resource group + shared scaffolding — done; `rg-docaudit-prod-ne` live in northeurope, tagged
 - [x] Task 4: Backend CORS becomes configurable — done; TDD, 15 tests passing (was 12)
 - [x] Task 5: Backend Dockerfile — done; multi-stage build, non-root user verified, /health + /samples verified in a running container. .dockerignore moved to repo root (Docker resolves it against build context, not the Dockerfile's directory)
-- [ ] Task 3: Resource group + shared scaffolding
-- [ ] Task 4: Backend CORS becomes configurable
-- [ ] Task 5: Backend Dockerfile
 - [x] Task 6: Build and publish image to GHCR — done; `ae2696f` published public, unauthenticated pull verified end-to-end. GHCR write needs a **classic** PAT (fine-grained PATs fail); package pushed private by default and had to be flipped to public
 
 ### Checkpoint: End of Phase 1
-- [ ] `pytest` passes (incl. new CORS tests)
-- [ ] `terraform fmt/validate` clean, resource group exists
-- [ ] Image builds/runs locally, `/health` + `/samples` both 200
-- [ ] Image pullable from GHCR with zero credentials
-- [ ] Review with human before Phase 2
+- [x] `pytest` passes (incl. new CORS tests) — 15 passed
+- [x] `terraform fmt/validate` clean, resource group exists
+- [x] Image builds/runs locally, `/health` + `/samples` both 200
+- [x] Image pullable from GHCR with zero credentials
+- [x] Review with human before Phase 2
 
 ### Phase 2: Independent Infra Shells
-- [ ] Task 7: Static Web App resource
+- [x] Task 7: Static Web App resource — done; `swa-docaudit-prod-eus2` live, hostname resolves 200 over HTTPS. SWA exists in only 5 regions and `northeurope` is not one, so it needed its own location variable; `westeurope` refused new customers (same 403 as Task 1), so it landed in `eastus2` — serving is CDN-global, so no latency or residency impact
 - [ ] Task 8: Cost Management budget alert
 
 ### Checkpoint: End of Phase 2
@@ -130,7 +128,7 @@ Phase 6 — Verification, Resilience, Docs
 | `image_tag` set to a mutable tag like `latest` | Terraform never detects a change, never rolls a new revision | Git short-SHA tag (decided above) |
 | `azurerm ~> 4.0` floating constraint drifts between plan and implementation | Minor attribute drift | `.terraform.lock.hcl` committed after first `init`, pins the exact resolved version |
 | Careless `FRONTEND_ORIGIN` implementation breaks local dev/docker-compose/tests | Violates "no commit without passing test suite" | T4's acceptance criteria require the existing dev origins keep working with the env var unset, TDD'd |
-| SWA deployment token leaks via logs/shell history/a committed file | Full write access to site content | Output marked `sensitive = true`; passed via env var/CLI arg only |
+| SWA deployment token leaks via logs/shell history/a committed file | Full write access to site content | **Revised in Task 7** — `sensitive = true` alone is NOT sufficient: it only redacts the bulk `terraform output` form, while `terraform output <name>` prints the secret in the clear (this leaked the token once; rotated via `az staticwebapp secrets reset-api-key`). Real mitigation: only ever `terraform output -raw <name>` piped straight into the consuming command, plus `tfplan*` gitignored (a saved plan embeds the token) |
 
 ## Verification (end-to-end, after all tasks)
 
