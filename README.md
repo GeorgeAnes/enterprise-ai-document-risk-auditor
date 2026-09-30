@@ -100,10 +100,12 @@ enterprise-ai-document-risk-auditor/
   data/samples/         Synthetic sample documents
   data/eval/            Ignored local evaluation outputs
   scripts/              Optional CUAD preparation and report-rendering scripts
-  tests/                Dataset evaluation smoke tests
+  evals/                Retrieval benchmark (evals/retrieval) and its offline fixture
+  tests/                Dataset evaluation smoke tests and retrieval benchmark tests
   docs/                 Architecture, methodology, and dataset notes
   AGENTS.md             Agent handoff notes for future development
   .env.example          Optional LLM/local endpoint configuration
+  .github/workflows/    ci.yml: pytest on push to main and on pull requests
   docker-compose.yml    Optional containerized local run path
 ```
 
@@ -173,6 +175,8 @@ npm.cmd run test:e2e
 ```
 
 The E2E smoke test serves the production frontend bundle locally and mocks the API responses for UI routing stability. Backend behavior is covered by the Python API tests above.
+
+The retrieval benchmark tests (`tests/test_retrieval_bench.py`) need numpy and are skipped when it is not installed, so `pip install -r backend/requirements.txt` alone still gives a passing `pytest`. Install `evals/requirements.txt` to run them.
 
 ## API Summary
 
@@ -281,6 +285,80 @@ python scripts\prepare_cuad_subset.py `
 
 The script prints JSON summaries to the terminal and writes generated outputs under `data/eval/`.
 
+## Retrieval Benchmark
+
+This benchmark tests query-to-passage retrieval on two public datasets, SQuAD and CUAD. It does not test claim-to-evidence retrieval, which is what the auditor does with a claim it extracted from a document. The CUAD "queries" are 41 fixed category prompts repeated across contracts, and are not claims. SQuAD questions were written by annotators who were reading the passage, which favors methods that match words. How far either fact changes the conclusions for the auditor's own claims has not been measured.
+
+`evals/retrieval/` compares the auditor's TF-IDF retrieval with sublinear TF-IDF, BM25, LSA, static dense vectors and reciprocal rank fusion (RRF), with paired bootstrap intervals and leak checks. `backend/` is not changed. The TF-IDF row is a numpy version of the auditor's scoring. It uses the auditor's tokenizer, and for CUAD its normalizer and chunker, unchanged, and it is checked against `_build_idf`, `_tfidf_vector` and `_cosine` by a test and on 200 sampled queries in every run.
+
+Use Python 3.11 to 3.13: `evals/requirements.txt` pins numpy 2.4.6, which needs Python 3.11 or newer, and wordllama 0.4.0.post1, which has wheels up to Python 3.13.
+
+Run it (bash):
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r backend/requirements.txt -r evals/requirements.txt
+python -m evals.retrieval.run --dataset fixture   # offline, about a second
+python -m evals.retrieval.fetch_data              # git clone --depth 1 of SQuAD and CUAD into data/raw/ (ignored by Git)
+python -m evals.retrieval.run --dataset squad     # 67 to 157 s over three runs
+python -m evals.retrieval.run --dataset cuad      # 139 to 339 s over three runs
+```
+
+PowerShell:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r backend\requirements.txt -r evals\requirements.txt
+python -m evals.retrieval.run --dataset fixture
+python -m evals.retrieval.fetch_data
+python -m evals.retrieval.run --dataset squad
+python -m evals.retrieval.run --dataset cuad
+```
+
+A full run of a dataset writes `docs/retrieval-results.json` and `docs/retrieval-bench.html`, one static page with bars, intervals and a query inspector that shows where a chosen query's gold passage ranks under each method. `--limit N` runs a sample (N SQuAD questions or N CUAD contracts) and does not touch `docs/`. The times above are for full runs on 2 vCPU and 7 GB RAM; the slower runs overlapped with other jobs.
+
+Results of 30 September 2026 (Python 3.11.15, numpy 2.4.6, wordllama 0.4.0.post1). The interval is a 95% bootstrap over whole paragraphs or contracts.
+
+| Method | SQuAD dev-v1.1, nDCG@10 [95% CI] | CUAD-QA sentences, nDCG@10 [95% CI] |
+|---|---|---|
+| Random | 0.002 [0.002, 0.003] | 0.037 [0.033, 0.041] |
+| TF-IDF as shipped (raw tf) | 0.750 [0.740, 0.760] | 0.316 [0.306, 0.326] |
+| TF-IDF, sublinear tf (1 + ln tf) | 0.825 [0.816, 0.834] | 0.318 [0.307, 0.328] |
+| BM25 (k1=1.2, b=0.75) | 0.846 [0.838, 0.854] | 0.324 [0.314, 0.334] |
+| BM25, b=0 | 0.824 [0.816, 0.833] | 0.332 [0.322, 0.341] |
+| LSA-64 | 0.338 [0.328, 0.350] | 0.291 [0.280, 0.302] |
+| Dense, static vectors | 0.678 [0.668, 0.688] | 0.301 [0.290, 0.311] |
+| RRF(BM25, dense) | 0.796 [0.787, 0.805] | 0.334 [0.323, 0.344] |
+| RRF(BM25, LSA) | 0.588 [0.578, 0.599] | 0.322 [0.311, 0.332] |
+
+What this shows: on SQuAD paragraphs BM25 is 0.097 above the shipped TF-IDF, and sublinear TF-IDF, which only changes the term-frequency weight, is 0.075 above it, so most of BM25's gain there comes from damping term frequency. On CUAD sentences the four lexical rows are within 0.016 of each other. Static dense vectors are below the shipped TF-IDF on both sets. Fusing BM25 with them (RRF) is 0.051 below BM25 on SQuAD and 0.009 above it on CUAD. The paired intervals, the split by query-to-passage word overlap and the leak checks are in [docs/evaluation.md](docs/evaluation.md).
+
+Idf differs between the setups: it is computed over all 2,067 paragraphs for SQuAD, over one contract for CUAD, and over the chunks of one document in the auditor.
+
+Embeddings: the dense row is WordLlama's static 256-dimension vectors, labeled "static 256-d vectors: a floor, not a verdict". The WordLlama package is MIT licensed, the license of its weights was not checked, and nothing from it is vendored. `--dense openai` reads `EMBED_BASE_URL`, `EMBED_MODEL` and optionally `EMBED_KEY` for an OpenAI-compatible `/embeddings` endpoint; it has only run against a local stub server.
+
+Limits:
+
+- Query-to-passage retrieval on two public datasets, not claim-to-evidence retrieval on audited documents.
+- One seed and one setting of k1, b and LSA dimensions; nothing was tuned. No transformer embedding was run.
+- The 20-query fixture in `evals/fixtures/mini.json` is illustrative: no intervals and no claims.
+- CUAD queries with no annotated answer are dropped, which makes that task easier than auditing a claim. The limits of the leak checks and of the per-third columns are listed in [docs/evaluation.md](docs/evaluation.md).
+- Out of scope for this change, and still true of the repository: the backend's endpoints have no authentication, and `backend/requirements.txt` gives version lower bounds only.
+
+Not validated:
+
+- The GitHub Actions workflow in `.github/workflows/ci.yml` has not run.
+- `--dense openai` against a real endpoint.
+- The Azure mapping below.
+- Running the commands on Windows. They were run on Linux.
+
+Mapping to Azure, by description only and not validated (none of it was run):
+
+- The BM25 leg, a vector leg and RRF with k = 60 correspond to hybrid search in Azure AI Search, whose documentation describes RRF as 1 / (rank + k) and gives 60 as an example value of k ([hybrid search scoring](https://learn.microsoft.com/en-us/azure/search/hybrid-search-ranking)).
+- The embedding call corresponds to an embeddings deployment in Azure OpenAI in Foundry Models, reached through `--dense openai`.
+- The gold passages could be given to the Document Retrieval evaluator in Microsoft Foundry, which reports NDCG, Fidelity and other search-quality metrics from relevance labels ([RAG evaluators](https://learn.microsoft.com/en-us/azure/foundry/concepts/evaluation-evaluators/rag-evaluators)).
+
 ## Limitations
 
 - The deterministic scorer is transparent but not a truth engine.
@@ -292,7 +370,7 @@ The script prints JSON summaries to the terminal and writes generated outputs un
 
 ## Future Work
 
-- Add optional sentence-transformer embeddings for stronger retrieval.
+- Run the retrieval benchmark with a transformer embedding endpoint (`--dense openai`) before adding embeddings to the auditor.
 - Add side-by-side source highlighting.
 - Add structured evidence packs with citation IDs.
 - Add reviewer annotations and saved audit sessions.
