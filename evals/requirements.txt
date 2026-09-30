@@ -1,0 +1,2 @@
+numpy==2.4.6
+wordllama==0.4.0.post1
