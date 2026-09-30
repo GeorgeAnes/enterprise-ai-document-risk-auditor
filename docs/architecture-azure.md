@@ -1,7 +1,11 @@
 # Azure Deployment Architecture
 
-How the Document Risk Auditor runs in production on Azure, and why it costs
-effectively nothing at idle.
+How the Document Risk Auditor ran on Azure, and why it cost effectively
+nothing at idle.
+
+> **Status.** The public deployment was retired in September 2026. This
+> document describes the topology that was deployed and that `infra/` still
+> provisions.
 
 This describes the *deployment topology*. For the application's internal
 architecture — the audit pipeline, claim extraction, risk scoring — see
@@ -24,7 +28,7 @@ flowchart TB
             swa["<b>Static Web App</b> (Free)<br/>swa-docaudit-prod-eus2<br/><i>React SPA, global CDN</i>"]
             aca["<b>Container App</b><br/>ca-docaudit-backend-prod-ne<br/><i>FastAPI · min_replicas 0 · max 2</i>"]
             env["Container Apps environment<br/>cae-docaudit-prod-ne"]
-            log["<b>Log Analytics</b><br/>daily_quota_gb = 0.1<br/><i>hard ingestion cap</i>"]
+            log["<b>Log Analytics</b><br/>daily_quota_gb = 0.1<br/><i>daily ingestion cap (approximate)</i>"]
             blob["<b>Blob Storage</b><br/>stdocauditprodne / samples<br/><i>no shared keys · private</i>"]
             budget["Cost budget — $5/mo<br/><i>alerts only, never caps</i>"]
         end
@@ -42,7 +46,7 @@ flowchart TB
     aca --- env
     env --> log
     aca -.->|"anonymous pull<br/>zero credentials"| ghcr
-    aca -->|"managed identity<br/>Storage Blob Data Reader<br/>(container-scoped)"| blob
+    aca -.->|"managed identity: Storage Blob Data Reader<br/>granted, container-scoped<br/>(samples are served from the image)"| blob
 
     budget -.->|watches| rg
 
@@ -63,16 +67,19 @@ flowchart TB
 | Container App | **$0** | `min_replicas = 0`. No traffic, no replicas, no compute charge. |
 | Static Web App | **$0** | Free SKU. |
 | Blob Storage | ~$0.00 | Three markdown files, ~4 KB total. |
-| Log Analytics | **$0** | Inside the 5 GB/month free ingestion grant, enforced by `daily_quota_gb = 0.1`. |
+| Log Analytics | **$0** | Inside the 5 GB/month free ingestion grant, bounded (not exactly) by `daily_quota_gb = 0.1`. |
 | Container Registry | **$0** | GHCR public package instead of Azure Container Registry (~$5/month). |
 | Terraform state | ~$0.01 | One blob in a Standard LRS account. |
 | Cost budget | **$0** | Budgets are free. |
 
-**The one hard spend stop is `daily_quota_gb` on the Log Analytics
-workspace** — when the daily cap is reached, ingestion *stops* rather than
-continuing to bill. The $5 budget only sends email; Azure budgets never
-throttle, cap, or delete anything. Scale-to-zero keeps compute near zero, but
-that is a consequence of having no traffic rather than an enforced ceiling.
+**The main guardrail on log ingestion is `daily_quota_gb` on the Log
+Analytics workspace.** When the daily cap is reached, ingestion stops for the
+rest of the day. The cap is not exact: Azure documents that it cannot stop
+collection at precisely the cap, that some excess data is expected, and that
+data collected above the cap is still billed. The $5 budget only sends email;
+Azure budgets never throttle, cap, or delete anything. `max_replicas = 2`
+bounds compute. Scale-to-zero keeps compute near zero, but that is a
+consequence of having no traffic rather than an enforced ceiling.
 
 ## The cold start, and why it is here
 
@@ -93,12 +100,19 @@ than a bare spinner. Measured: ~21s cold, ~0.26s warm.
 
 ## Security model
 
-No secrets exist anywhere in this deployment. That is a property of the
-design, not a matter of discipline:
+No application secrets exist in this deployment: the app needs no API key or
+connection string, and the design gives it none. Two things sit outside that
+statement. The Static Web Apps deployment token is a sensitive Terraform
+output that the application never reads. It is stored in the Terraform state
+and has to be handled with care; `tasks/todo.md` (Task 7) records that it was
+printed once by mistake and rotated. And the separate Terraform-state storage
+account that `scripts/bootstrap-tfstate.sh` creates still has shared-key
+access enabled (the script does not disable it), although Terraform and the
+operator reach it with Entra ID and the script never reads a key.
 
 - **No registry credentials.** The GHCR package is public, so the Container
   App pulls anonymously. There is no `registry` block in the Terraform at all.
-- **No storage keys.** The storage account sets
+- **No storage keys on the samples account.** That account sets
   `shared_access_key_enabled = false`, so no account key or SAS token exists
   to leak. Key-based auth is refused by the platform
   (`KeyBasedAuthenticationNotPermitted`), including for Terraform itself,
@@ -106,9 +120,16 @@ design, not a matter of discipline:
 - **One RBAC grant, narrowly scoped.** The backend's system-assigned managed
   identity holds exactly one role: `Storage Blob Data Reader`, scoped to the
   `samples` *container* rather than the storage account. Account-level scope
-  would silently extend read access to any container added later.
-- **CORS is an allow-list, never a wildcard.** `FRONTEND_ORIGIN` is set from
-  the Static Web App's own hostname at apply time.
+  would silently extend read access to any container added later. The grant is
+  provisioned. The recorded checks (`tasks/todo.md`, Task 10) list it with
+  `az role assignment list`, and nothing read a blob with the app's identity.
+  The app does not read Blob Storage at runtime: `/samples` is served from the
+  copy of `data/samples/` baked into the image, as the comment in
+  `infra/storage.tf` says.
+- **CORS origins are an allow-list, never a wildcard.** `FRONTEND_ORIGIN` is
+  set from the Static Web App's own hostname at apply time, and the two local
+  development origins are also allowed. Methods and headers are wildcards and
+  credentials are allowed (`backend/app/main.py`).
 
 ### Key Vault is deliberately absent
 

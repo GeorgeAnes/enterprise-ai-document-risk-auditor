@@ -6,8 +6,10 @@
 # script creates just the resource group, storage account, and blob container
 # that infra/backend.hcl (Task 2) points Terraform at.
 #
-# AAD-only throughout (--auth-mode login / use_azuread_auth) -- no storage
-# account keys, ever, consistent with the rest of this deployment.
+# Access goes through Entra ID throughout (--auth-mode login /
+# use_azuread_auth) and this script never reads or writes an account key.
+# It does not turn shared-key access off, though (there is no
+# --allow-shared-key-access false below), so this account still has keys.
 set -euo pipefail
 
 RESOURCE_GROUP="rg-docaudit-tfstate-ne"
