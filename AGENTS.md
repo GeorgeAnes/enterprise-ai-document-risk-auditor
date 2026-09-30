@@ -39,8 +39,6 @@ Frontend:
 
 Dataset scripts:
 
-- `scripts/prepare_fever_subset.py`
-- `scripts/evaluate_fever_risk.py`
 - `scripts/prepare_cuad_subset.py`
 - `scripts/render_eval_reports.py`
 

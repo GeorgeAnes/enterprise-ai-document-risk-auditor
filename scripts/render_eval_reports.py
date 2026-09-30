@@ -7,20 +7,12 @@ from typing import Any
 
 
 def render_reports(
-    fever_summary_path: str | Path = "data/eval/fever_eval_summary.json",
     cuad_summary_path: str | Path = "data/eval/cuad_audit_summary.json",
     output_dir: str | Path = "docs/evaluation_results",
 ) -> dict[str, str]:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     written: dict[str, str] = {}
-
-    fever_path = Path(fever_summary_path)
-    if fever_path.exists():
-        fever = json.loads(fever_path.read_text(encoding="utf-8"))
-        target = output_dir / "fever_gemini_risk_eval.md"
-        target.write_text(render_fever_markdown(fever), encoding="utf-8")
-        written["fever"] = str(target)
 
     cuad_path = Path(cuad_summary_path)
     if cuad_path.exists():
@@ -34,45 +26,6 @@ def render_reports(
     written["index"] = str(index)
     print(json.dumps(written, indent=2))
     return written
-
-
-def render_fever_markdown(summary: dict[str, Any]) -> str:
-    lines = [
-        "# FEVER Gemini Risk Evaluation",
-        "",
-        "Small FEVER subset run through the deterministic auditor with optional Gemini reviewer notes.",
-        "",
-        f"- Examples evaluated: {summary.get('examples_evaluated', 0)}",
-        f"- Supported lower than refuted: {summary.get('supported_lower_than_refuted')}",
-        f"- Supported lower than not-enough-info: {summary.get('supported_lower_than_not_enough_info')}",
-        f"- LLM review status counts: `{summary.get('llm_review_status_counts', {})}`",
-        "",
-        "## Average Risk By FEVER Label",
-        "",
-        "| Label | Average risk |",
-        "|---|---:|",
-    ]
-    for label, value in summary.get("average_risk_by_label", {}).items():
-        lines.append(f"| {label} | {value} |")
-
-    lines.extend(["", "## Example Findings", "", "| FEVER label | Risk | Auditor label | Claim | Gemini note |", "|---|---:|---|---|---|"])
-    for result in summary.get("results", [])[:12]:
-        note = first_note(result)
-        lines.append(
-            f"| {result.get('label')} | {result.get('risk_score')} | {result.get('auditor_label')} | "
-            f"{safe_cell(result.get('claim', ''))} | {safe_cell(note)} |"
-        )
-    lines.extend(
-        [
-            "",
-            "## Notes",
-            "",
-            "- FEVER is used here to check relative risk behavior across support labels.",
-            "- This is not a full FEVER leaderboard benchmark.",
-            "- Only a small subset should be committed as rendered summary, never the raw dataset.",
-        ]
-    )
-    return "\n".join(lines) + "\n"
 
 
 def render_cuad_markdown(summary: dict[str, Any]) -> str:
@@ -122,8 +75,6 @@ def render_cuad_markdown(summary: dict[str, Any]) -> str:
 
 def render_index(written: dict[str, str]) -> str:
     lines = ["# Evaluation Result Reports", ""]
-    if "fever" in written:
-        lines.append("- [FEVER Gemini Risk Evaluation](fever_gemini_risk_eval.md)")
     if "cuad" in written:
         lines.append("- [CUAD Gemini Contract Review Stress Test](cuad_gemini_contract_review.md)")
     lines.extend(
@@ -136,15 +87,6 @@ def render_index(written: dict[str, str]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def first_note(result: dict[str, Any]) -> str:
-    notes = result.get("llm_reviewer_notes") or []
-    for note in notes:
-        text = str(note).replace("**", "")
-        if not text.lower().startswith("here are"):
-            return text
-    return str(result.get("llm_summary") or result.get("llm_review_status") or "")
-
-
 def safe_cell(value: str, max_length: int = 220) -> str:
     cleaned = " ".join(str(value).split())
     if len(cleaned) > max_length:
@@ -153,12 +95,11 @@ def safe_cell(value: str, max_length: int = 220) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Render FEVER/CUAD evaluation JSON into GitHub Markdown reports.")
-    parser.add_argument("--fever-summary", default="data/eval/fever_eval_summary.json")
+    parser = argparse.ArgumentParser(description="Render CUAD evaluation JSON into a GitHub Markdown report.")
     parser.add_argument("--cuad-summary", default="data/eval/cuad_audit_summary.json")
     parser.add_argument("--output-dir", default="docs/evaluation_results")
     args = parser.parse_args()
-    render_reports(args.fever_summary, args.cuad_summary, args.output_dir)
+    render_reports(args.cuad_summary, args.output_dir)
 
 
 if __name__ == "__main__":
