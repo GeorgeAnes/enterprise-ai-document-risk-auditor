@@ -1,18 +1,21 @@
-# Container Apps requires a Log Analytics workspace for its environment --
-# there is no "no logging" option, so the only lever is bounding what it
-# ingests.
+# A Container Apps environment can be set not to save logs at all (the `none`
+# logs destination, see learn.microsoft.com/azure/container-apps/log-options).
+# Keeping a Log Analytics workspace here is a choice, and the lever that
+# choice leaves is bounding what the workspace ingests.
 resource "azurerm_log_analytics_workspace" "this" {
   name                = "log-docaudit-prod-ne"
   resource_group_name = azurerm_resource_group.this.name
   location            = azurerm_resource_group.this.location
   sku                 = "PerGB2018"
 
-  # The real cost control. Ingestion and retention are separate meters: the
-  # free 5 GB/month grant is on *ingestion*, and retention settings do not
-  # constrain it. Without this cap nothing in the stack bounds log volume.
-  # When the daily cap is reached, ingestion STOPS for the remainder of the
-  # UTC day rather than continuing to bill -- the only hard spend stop in
-  # this architecture (the budget in budget.tf only sends email).
+  # The main guardrail on log ingestion. Ingestion and retention are separate
+  # meters: the free 5 GB/month grant is on *ingestion*, and retention
+  # settings do not constrain it. Without this cap nothing in the stack
+  # bounds log volume. When the daily cap is reached, ingestion stops for the
+  # remainder of the UTC day. The cap is not exact: Azure documents that it
+  # cannot stop collection at precisely the cap, that some excess data is
+  # expected, and that data collected above the cap is still billed. The
+  # budget in budget.tf only sends email.
   # 0.1 GB/day is ~3 GB/month, comfortably inside the grant and far more
   # than one demo app produces.
   daily_quota_gb = 0.1
@@ -39,8 +42,10 @@ resource "azurerm_container_app" "backend" {
   container_app_environment_id = azurerm_container_app_environment.this.id
   revision_mode                = "Single"
 
-  # Used in Tasks 10 and 11 to grant this app -- and nothing else -- read
-  # access to the samples container and the key vault. Note there is no
+  # Used in Task 10 to grant this app -- and nothing else -- read access to
+  # the samples container. The Key Vault grant planned for Task 11 is
+  # deferred: no Key Vault is provisioned (see docs/architecture-azure.md).
+  # Note there is no
   # `registry` block anywhere in this resource: the GHCR package is public,
   # so the pull needs no credential at all. That absence is deliberate.
   identity {

@@ -1,5 +1,12 @@
 # Spec: Azure Deployment (Terraform)
 
+> **Status (September 2026).** Two differences from the text below. Key
+> Vault was deferred and is not provisioned (`tasks/todo.md`, Task 11;
+> `docs/architecture-azure.md`). The app serves its samples from the container
+> image, not from Blob Storage, although the Blob read grant exists. The public
+> deployment has since been retired. Text below that describes a Key Vault as
+> provisioned has been marked as deferred.
+
 ## Objective
 
 Deploy the existing Document Risk Auditor (FastAPI backend + React/Vite frontend) to Azure so it is reachable at a public HTTPS URL for the portfolio page, using infrastructure entirely defined in Terraform. The deployment must cost $0/month at idle and stay inside Azure's *permanent* free tiers/grants (not just the 30-day trial credit), since this is a solo portfolio project expected to sit mostly idle between recruiter/reviewer visits.
@@ -13,7 +20,7 @@ Success looks like: `terraform apply` stands the whole stack up from nothing, th
 2. **Terraform state is remote**, in an Azure Storage Account — **confirmed.** Local state was rejected specifically because Phase 2 (GitHub Actions CI/CD) needs a state file reachable from CI, not just from one laptop.
 3. **GitHub Container Registry package stays public** (matches the public GitHub repo). This means Azure Container Apps can pull the image with **no registry credentials at all** — one less secret to manage.
 4. **CI/CD is out of scope for this spec** — confirmed by your own framing ("Phase 2 is a CI/CD pipeline"). This spec covers Terraform infra + manual `docker build/push` + `terraform apply`; GitHub Actions is the next spec once this one is proven and remote state exists for it to use.
-5. **`LLM_MODE=off` for this deployment — confirmed.** Deterministic pipeline only. LM Studio was already ruled out (localhost-only, unreachable from Azure); Gemini is deliberately deferred too, not just LM Studio. Key Vault is still provisioned now (per your standing "design it in, don't retrofit" instruction) with the RBAC wiring proven end-to-end, but it holds zero secrets until Gemini is turned on later — see Tech Stack.
+5. **`LLM_MODE=off` for this deployment — confirmed.** Deterministic pipeline only. LM Studio was already ruled out (localhost-only, unreachable from Azure); Gemini is deliberately deferred too, not just LM Studio. Key Vault was to be provisioned now (per your standing "design it in, don't retrofit" instruction) with the RBAC wiring proven end-to-end, holding zero secrets until Gemini is turned on later. **Deferred, not provisioned:** it goes in with the first real secret — see Tech Stack.
 
 ### Remote state backend — bootstrap mechanics
 
@@ -30,8 +37,8 @@ Terraform's `backend "azurerm" {}` block can't reference input variables (a Terr
 - **Backend registry:** GitHub Container Registry (`ghcr.io`), public package, free
 - **Frontend hosting:** Azure Static Web Apps, Free tier
 - **Object storage:** Azure Blob Storage (sample documents), private container, no anonymous access
-- **Secrets:** Azure Key Vault, Standard tier, RBAC authorization mode (not legacy access policies) — provisioned now, empty for now (`LLM_MODE=off`), ready for a Gemini secret later without any re-architecture
-- **Identity:** System-assigned managed identity on the Container App — no storage keys, no connection strings, no SAS tokens anywhere
+- **Secrets:** Azure Key Vault, Standard tier, RBAC authorization mode (not legacy access policies) — **deferred, not provisioned**; planned to be added with the first real secret (a Gemini key) without any re-architecture
+- **Identity:** System-assigned managed identity on the Container App — no storage keys, no connection strings, no SAS tokens on the application path (the separate state storage account from the bootstrap script still has shared keys enabled)
 - **State backend:** Azure Storage Account (remote), bootstrapped once via script, referenced via `-backend-config` (see Assumptions)
 - **Region:** `northeurope` (switched from westeurope — see Assumptions note below)
 
@@ -65,7 +72,7 @@ infra/
   container_app.tf           → Container Apps environment, Log Analytics workspace (capped ingestion + retention), backend container app, managed identity
   static_web_app.tf          → Static Web App resource
   storage.tf                 → storage account + private container, sample-doc upload, RBAC role assignment (Storage Blob Data Reader → backend identity)
-  key_vault.tf                → Key Vault (RBAC mode) + RBAC role assignment, provisioned now and empty; Gemini secret resource is conditional (created only once var.gemini_api_key is supplied)
+  key_vault.tf                → DEFERRED, not built: Key Vault (RBAC mode) + RBAC role assignment, planned empty; Gemini secret resource is conditional (created only once var.gemini_api_key is supplied)
   budget.tf                   → Cost Management budget + alert (free) scoped to the resource group
   variables.tf                 → inputs; sensitive vars (e.g. gemini_api_key) default to null, sourced from TF_VAR_* env vars at apply time
   outputs.tf                    → backend FQDN, frontend URL, resource group name
@@ -151,14 +158,14 @@ No automated Terraform test framework (Terratest, etc.) — disproportionate for
 |---|---|---|
 | Spoofing | Someone impersonates the backend to read/write blobs or secrets | Managed identity (no shared keys to leak/spoof) |
 | Tampering | Sample docs modified in storage | Blob container private, only the backend identity has `Storage Blob Data Reader` (read-only, not Contributor) |
-| Information disclosure | Storage keys, Gemini API key, or connection strings leak via repo/logs/state | No keys ever generated — managed identity + RBAC only; secrets sourced from `TF_VAR_*` env vars, never committed; Key Vault in RBAC mode, not access-policy mode |
+| Information disclosure | Storage keys, Gemini API key, or connection strings leak via repo/logs/state | No keys generated for the application or its samples account — managed identity + RBAC only; secrets sourced from `TF_VAR_*` env vars, never committed; Key Vault (deferred) in RBAC mode when added, not access-policy mode |
 | Denial of service / unbounded consumption | A traffic spike or scripted abuse of the public `/audit` endpoint scales the Container App and/or racks up Gemini API cost | `max_replicas = 2` hard cap; Cost Management budget alert at a low threshold (e.g. $5) as a safety net given a card is attached |
-| Elevation of privilege | Backend identity granted broader rights than it needs | RBAC role assignments scoped to the *specific* storage account and *specific* Key Vault only — never subscription- or resource-group-wide `Contributor`/`Owner` |
+| Elevation of privilege | Backend identity granted broader rights than it needs | RBAC role assignments scoped to the *specific* storage account and, once one exists, the *specific* Key Vault only — never subscription- or resource-group-wide `Contributor`/`Owner` |
 
 Concretely:
 - **No Azure Container Registry, no registry secret** — the GHCR image stays public, so Container Apps pulls it with zero credentials.
 - **No storage account keys or SAS tokens** — backend identity gets `Storage Blob Data Reader` scoped to the one container.
-- **No Key Vault access policies** — Key Vault uses RBAC authorization; backend identity gets `Key Vault Secrets User` scoped to the one vault, and only if Gemini is enabled (Open Question 2).
+- **No Key Vault access policies** — Key Vault (deferred, not provisioned) will use RBAC authorization; backend identity gets `Key Vault Secrets User` scoped to the one vault, and only if Gemini is enabled (Open Question 2).
 - **CORS on the FastAPI backend is restricted to the exact Static Web App origin** — no wildcard.
 - **HTTPS-only** on both Container Apps ingress and Static Web Apps (both are HTTPS-only by default; nothing to configure to disable it — the "always do" here is *not accidentally weakening this default*).
 
@@ -167,11 +174,11 @@ Concretely:
 | Resource | Idle | Light demo traffic |
 |---|---|---|
 | Container Apps (Consumption, min=0) | $0 — no vCPU/memory billed while scaled to zero | ~$0 — a few dozen requests/day is far inside the permanent free grant (180k vCPU-s / 360k GiB-s / 2M requests per month) |
-| Log Analytics workspace (required by Container Apps env) | $0 | $0 — well under the 5 GB/month free ingestion, enforced by `daily_quota_gb = 0.1`, which **halts** ingestion when hit rather than billing. Retention is a separate meter and does not bound ingestion; `retention_in_days = 30` is set on its own merits (first 31 days are free) |
+| Log Analytics workspace (required by Container Apps env) | $0 | $0 — well under the 5 GB/month free ingestion, bounded by `daily_quota_gb = 0.1`, which stops most ingestion when hit. The cap is not exact and data collected above it is still billed. Retention is a separate meter and does not bound ingestion; `retention_in_days = 30` is set on its own merits (first 31 days are free) |
 | GitHub Container Registry | $0 | $0 — free for public packages, unlimited bandwidth |
 | Azure Static Web Apps (Free tier) | $0 | $0 — 100 GB/month bandwidth included, hard-capped not billed |
-| Blob Storage (a few small sample docs) | ~$0.00 | ~$0.00–0.01 — storage + read-op cost on a handful of KB-sized files rounds to fractions of a cent |
-| Key Vault (Standard, RBAC) | $0 base fee | $0 — empty for now (`LLM_MODE=off`); once Gemini is enabled, a few secret reads per cold start, priced per 10k ops, still ~$0.00 |
+| Blob Storage (a few small sample docs) | ~$0.00 | ~$0.00–0.01 — storage cost on a handful of KB-sized files rounds to fractions of a cent (the app does not read them at runtime) |
+| Key Vault (Standard, RBAC) — deferred, not provisioned | $0 | $0 until built; once Gemini is enabled, a few secret reads per cold start, priced per 10k ops, still ~$0.00 |
 | Terraform remote state (Storage Account, tiny) | ~$0.01 | ~$0.01 — one small `.tfstate` blob, negligible storage + transaction cost |
 | Outbound data transfer | $0 | $0 — well inside the 100 GB/month free egress allowance |
 | **Total** | **~$0.01/month** | **~$0.01–0.06/month** |
@@ -186,7 +193,7 @@ This is inside Azure's *standing* free tiers/grants — it should hold **after**
 
 ## Success Criteria
 
-- [ ] `terraform apply` provisions the full stack (resource group, Container Apps env + backend app at `min_replicas=0`, Static Web App, Storage account + container with sample docs, Key Vault + RBAC wiring, managed identity, remote state) with zero manual portal steps beyond the one-time bootstrap script
+- [ ] `terraform apply` provisions the full stack (resource group, Container Apps env + backend app at `min_replicas=0`, Static Web App, Storage account + container with sample docs, managed identity, remote state; Key Vault + RBAC wiring deferred) with zero manual portal steps beyond the one-time bootstrap script
 - [ ] `backend/Dockerfile` builds and the image runs correctly when pushed to GHCR as a public package, deployed with `LLM_MODE=off`
 - [ ] Frontend (built via `npm run build`) is live on the Static Web Apps free tier and successfully calls the backend (`/health`, `/samples`, `/audit`) with CORS restricted to its own origin
 - [ ] No API key, connection string, or storage key appears anywhere in plaintext (repo, Terraform state, container app config, or logs)

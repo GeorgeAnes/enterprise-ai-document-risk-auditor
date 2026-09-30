@@ -70,11 +70,16 @@ infrastructure and recovery path had been demonstrated. The Terraform in
 [`infra/`](infra) and the write-up of what was deployed stay in the repository.
 
 The stack was a React frontend on Static Web Apps, a FastAPI backend on
-Container Apps with a system-assigned managed identity, sample documents in
-Blob Storage, and remote Terraform state. No secrets existed anywhere in the
-deployment: the container image was pulled anonymously from a public GHCR
-package, storage shared keys were disabled at the platform level, and the
-backend identity held exactly one container-scoped RBAC grant.
+Container Apps with a system-assigned managed identity, sample documents
+uploaded to Blob Storage, and remote Terraform state. The deployment held no
+application secrets: the container image was pulled anonymously from a public
+GHCR package, shared keys were disabled on the samples storage account, and the
+backend identity held exactly one container-scoped RBAC grant on that account.
+The Static Web Apps deployment token existed as a sensitive Terraform output
+that the application never read. The app served its samples from the container
+image, not from Blob Storage. The recorded checks listed the grant and listed
+the blobs with the operator's own login; nothing read a blob with the app's
+identity. The separate Terraform-state account still has shared keys enabled.
 
 > **The first request took ~20s.** The backend scaled to zero when idle, so the
 > first request after a quiet period cold-started a container. Subsequent

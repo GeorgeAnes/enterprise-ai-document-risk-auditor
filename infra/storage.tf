@@ -68,9 +68,10 @@ resource "azurerm_storage_blob" "samples" {
 # every container added to the account in future.
 #
 # Note the app does not currently read these blobs at runtime: it serves
-# /samples from the copy baked into its image (Task 5). This provisions and
-# proves the access path without adding an Azure SDK dependency to the
-# backend, which was the agreed scope.
+# /samples from the copy baked into its image (Task 5). This provisions the
+# access path without adding an Azure SDK dependency to the backend, which
+# was the agreed scope. Nothing reads the blobs with this identity, so the
+# grant was checked by listing it (`az role assignment list`), not by using it.
 resource "azurerm_role_assignment" "backend_samples_reader" {
   scope                = azurerm_storage_container.samples.id
   role_definition_name = "Storage Blob Data Reader"
