@@ -63,22 +63,22 @@ flowchart LR
 
 The deterministic pipeline is the auditable baseline: ingestion, chunking, claim extraction, TF-IDF retrieval, risk scoring, labels, and exports are reproducible and do not require an LLM. The local Gemma reviewer is an interpretive layer: it reviews the top risky claims after scoring and adds notes, safer rewrites, missing-evidence questions, and business impact. If LM Studio is unavailable, the deterministic audit still completes.
 
-## Live Deployment
+## Deployment (retired September 2026)
 
-Running on Azure, fully provisioned by Terraform in [`infra/`](infra):
+The public deployment was intentionally retired in September 2026 after the
+infrastructure and recovery path had been demonstrated. The Terraform in
+[`infra/`](infra) and the write-up of what was deployed stay in the repository.
 
-**https://kind-beach-04e83b00f.7.azurestaticapps.net**
+The stack was a React frontend on Static Web Apps, a FastAPI backend on
+Container Apps with a system-assigned managed identity, sample documents in
+Blob Storage, and remote Terraform state. No secrets existed anywhere in the
+deployment: the container image was pulled anonymously from a public GHCR
+package, storage shared keys were disabled at the platform level, and the
+backend identity held exactly one container-scoped RBAC grant.
 
-React frontend on Static Web Apps, FastAPI backend on Container Apps with a
-system-assigned managed identity, sample documents in Blob Storage, remote
-Terraform state. No secrets exist anywhere in the deployment: the container
-image is pulled anonymously from a public GHCR package, storage shared keys
-are disabled at the platform level, and the backend identity holds exactly one
-container-scoped RBAC grant.
-
-> **First request takes ~20s.** The backend scales to zero when idle, so the
-> first request after a quiet period cold-starts a container. Subsequent
-> requests are under 300ms. That tradeoff is why this runs at €0/month — see
+> **The first request took ~20s.** The backend scaled to zero when idle, so the
+> first request after a quiet period cold-started a container. Subsequent
+> requests were under 300ms. That tradeoff is why it ran at €0/month; see
 > [the deployment architecture](docs/architecture-azure.md#the-cold-start-and-why-it-is-here)
 > for why it was chosen.
 
@@ -87,7 +87,7 @@ reproducibility proof: **[docs/architecture-azure.md](docs/architecture-azure.md
 
 ## Screenshot
 
-The dark risk-intelligence dashboard, captured from the live Azure deployment. All documents shipped with the project are synthetic.
+The dark risk-intelligence dashboard, captured while the deployment was live. All documents shipped with the project are synthetic.
 
 ![Dashboard screenshot](docs/screenshot-dashboard.png)
 
@@ -99,7 +99,7 @@ enterprise-ai-document-risk-auditor/
   frontend/             React/Vite dashboard
   data/samples/         Synthetic sample documents
   data/eval/            Ignored local evaluation outputs
-  scripts/              Optional FEVER/CUAD preparation and evaluation scripts
+  scripts/              Optional CUAD preparation and report-rendering scripts
   tests/                Dataset evaluation smoke tests
   docs/                 Architecture, methodology, and dataset notes
   AGENTS.md             Agent handoff notes for future development
@@ -244,20 +244,18 @@ The `/scan` screen accepts one primary document at a time. Drag a `.txt`, `.md`,
 
 For optional grounding material, drag a `.txt`, `.md`, `.csv`, `.json`, or `.jsonl` text file into the evidence pack zone. The app uses this as extra retrieval material.
 
-Downloaded FEVER and CUAD datasets are optional evaluation data, not required for the normal UI demo. For CUAD, the easiest UI demo is to drag one contract `.txt` file from `full_contract_txt` into the primary document drop zone. Do not drag a whole dataset folder or zip file into the app.
+Downloaded CUAD data is optional evaluation data, not required for the normal UI demo. The easiest UI demo is to drag one contract `.txt` file from `full_contract_txt` into the primary document drop zone. Do not drag a whole dataset folder or zip file into the app.
 
 ## Data Notes
 
 The included documents are synthetic. They are safe to publish and do not contain client data, private coursework, credentials, or personal information.
 
-The default UI demo uses `data/samples/consulting_report_sample.md`. Optional dataset scripts are provided for small local evaluation subsets only. They do not download large datasets automatically, and generated files under `data/eval/` are ignored.
+The default UI demo uses `data/samples/consulting_report_sample.md`. The optional dataset script is provided for small local evaluation subsets only. It does not download large datasets automatically, and generated files under `data/eval/` are ignored.
 
 ## Optional Dataset Evaluation
 
 Relevant public datasets:
 
-- [FEVER](https://fever.ai/dataset/fever.html): claim verification data with `SUPPORTS`, `REFUTES`, and `NOT ENOUGH INFO` labels.
-- [FEVER paper](https://arxiv.org/abs/1803.05355): background on fact extraction and verification.
 - [CUAD](https://www.atticusprojectai.org/cuad/): contract review dataset from The Atticus Project.
 - [CUAD Zenodo record](https://zenodo.org/records/4595826): archived CUAD v1 dataset package.
 - [CUAD paper](https://arxiv.org/abs/2103.06268): background on expert-annotated legal contract review.
@@ -268,36 +266,8 @@ Rendered example outputs from a tiny Gemini-backed run are in [docs/evaluation_r
 
 What each dataset tests:
 
-- FEVER is used as a lightweight risk-score separation sanity check: supported claims should generally receive lower risk than refuted or not-enough-info claims. It is not a full FEVER benchmark.
 - CUAD is used as a long-document and contract-review stress test for ingestion, vague-clause detection, risk triage, and evidence snippets. It is not a hallucination benchmark.
 - The synthetic consulting report remains the default UI demo because it is small, safe to publish, and immediately runnable.
-
-Prepare a small FEVER subset from a local FEVER JSONL file:
-
-```powershell
-python scripts\prepare_fever_subset.py `
-  --input data\raw\fever\paper_dev.jsonl `
-  --output data\eval\fever_subset.jsonl `
-  --max-per-label 5
-```
-
-If you have a small local FEVER Wikipedia-pages folder and want to resolve evidence sentence text:
-
-```powershell
-python scripts\prepare_fever_subset.py `
-  --input data\raw\fever\paper_dev.jsonl `
-  --wiki-pages-dir data\raw\fever\wiki-pages `
-  --output data\eval\fever_subset.jsonl `
-  --max-per-label 5
-```
-
-Evaluate relative risk separation:
-
-```powershell
-python scripts\evaluate_fever_risk.py `
-  --input data\eval\fever_subset.jsonl `
-  --output data\eval\fever_eval_summary.json
-```
 
 Prepare and audit a small CUAD contract subset from local `.txt`, `.md`, or JSON files:
 
@@ -309,7 +279,7 @@ python scripts\prepare_cuad_subset.py `
   --max-docs 3
 ```
 
-The scripts print JSON summaries to the terminal and write generated outputs under `data/eval/`.
+The script prints JSON summaries to the terminal and writes generated outputs under `data/eval/`.
 
 ## Limitations
 
@@ -317,7 +287,7 @@ The scripts print JSON summaries to the terminal and write generated outputs und
 - It can miss implicit support, table-only evidence, and domain-specific nuance.
 - PDF extraction depends on embedded text quality.
 - The optional LLM adapter is intentionally not required for the core workflow.
-- FEVER support checks depend on available evidence text. If only FEVER evidence references are available, the preparation script creates a clearly marked label-aware fallback evidence pack for small calibration tests.
+- An earlier FEVER evaluation was removed because its preparation path leaked gold labels into pipeline inputs; the code remains in the git history.
 - CUAD annotations are designed for legal clause extraction and review. This project uses CUAD to stress-test contract ingestion and risk triage, not to measure hallucination detection accuracy.
 
 ## Future Work
@@ -327,7 +297,6 @@ The scripts print JSON summaries to the terminal and write generated outputs und
 - Add structured evidence packs with citation IDs.
 - Add reviewer annotations and saved audit sessions.
 - Add QASPER preparation for evidence-grounded research-paper review.
-- Add richer FEVER evidence resolution over a small local Wikipedia subset.
 
 ## Private Data Warning
 
