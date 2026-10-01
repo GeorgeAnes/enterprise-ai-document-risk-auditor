@@ -35,6 +35,7 @@ PAIRS = [("bm25", "tfidf_sub"), ("rrf_bm25_dense", "bm25"), ("rrf_bm25_lsa", "bm
 
 def run_dataset(name: str, limit: int | None = None, dense: str = "wordllama", seed: int = 0) -> dict:
     task, qrels = LOADERS[name](limit=limit, seed=seed)
+    R.LABELS["dense"] = R.dense_label(dense)
     embed = None if dense == "none" else R.get_embedder(dense)
     queries, ids = task.queries, [q.id for q in task.queries]
     golds = [qrels[i] for i in ids]

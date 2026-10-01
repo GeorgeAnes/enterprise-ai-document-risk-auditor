@@ -18,6 +18,8 @@ from backend.app.core.retrieval import _tokens
 K1, B, RRF_K, LSA_DIMS, BLOCK = 1.2, 0.75, 60, 64, 256
 CACHE = Path(__file__).resolve().parents[2] / "data" / "eval" / "embed_cache.sqlite"
 
+STATIC_DENSE = "Dense, static vectors"
+
 # key -> label shown in tables. Order is the order of the rows.
 LABELS = {
     "random": "Random",
@@ -26,7 +28,7 @@ LABELS = {
     "bm25": "BM25 (k1=1.2, b=0.75)",
     "bm25_b0": "BM25, b=0",
     "lsa": "LSA-64",
-    "dense": "Dense, static vectors",
+    "dense": STATIC_DENSE,
     "rrf_bm25_dense": "RRF(BM25, dense)",
     "rrf_bm25_lsa": "RRF(BM25, LSA)",
 }
@@ -148,6 +150,11 @@ def score_all(texts: list[str], queries: list[str], embed=None, seed: int = 0):
         s["rrf_bm25_dense"] = rrf([(s["bm25"], True), (s["dense"], False)], perm)
     s["rrf_bm25_lsa"] = rrf([(s["bm25"], True), (s["lsa"], False)], perm)
     return {k: s[k] for k in LABELS if k in s}, vectors
+
+
+def dense_label(kind: str) -> str:
+    """The dense row's name: the API model when one is used, so it is not called static vectors."""
+    return f"Dense, {os.environ.get('EMBED_MODEL', 'OpenAI-compatible')}" if kind == "openai" else STATIC_DENSE
 
 
 def get_embedder(kind: str):

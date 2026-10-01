@@ -26,7 +26,7 @@ def test_tfidf_matches_the_auditors_own_functions():
         assert np.allclose(row, [_cosine(_tfidf_vector(q, idf), v) for v in vectors], atol=1e-6)
 
 
-def test_bm25_by_hand_on_three_documents():
+def test_bm25_matches_worked_example_on_three_documents():
     # avgdl = 3, idf(apple) = ln(2.5/1.5 + 1) = 0.9808, idf(banana) = ln(1.5/2.5 + 1) = 0.4700
     # doc 1: apple tf 2 -> 2*2.2/(2 + 1.2*1.0) = 1.375; banana tf 1 -> 2.2/2.2 = 1.0; 1.375*0.9808 + 0.4700 = 1.8186
     # doc 2: banana tf 1, length 2 -> 2.2/(1 + 1.2*0.75) = 1.1579; 1.1579*0.4700 = 0.5442.  Doc 3: no query term.
@@ -170,6 +170,8 @@ def test_openai_compatible_embedder_against_a_stub_server(tmp_path, monkeypatch)
     monkeypatch.setattr(R, "CACHE", tmp_path / "cache.sqlite")
     monkeypatch.setenv("EMBED_BASE_URL", f"http://127.0.0.1:{server.server_port}/v1")
     monkeypatch.setenv("EMBED_MODEL", "stub")
+    for var in ("NO_PROXY", "no_proxy"):  # a proxy in the environment must not take the loopback request
+        monkeypatch.setenv(var, "127.0.0.1")
     try:
         assert R._openai_embed(["aa", "bbbb"]).tolist() == [[2.0, 1.0], [4.0, 1.0]]
         assert R._openai_embed(["aa", "bbbb"]).tolist() == [[2.0, 1.0], [4.0, 1.0]]
@@ -179,3 +181,11 @@ def test_openai_compatible_embedder_against_a_stub_server(tmp_path, monkeypatch)
     monkeypatch.setenv("EMBED_BASE_URL", "file:///etc/passwd")
     with pytest.raises(ValueError):
         R._openai_embed(["x"])
+
+
+def test_dense_row_is_labeled_after_its_embedder(monkeypatch):
+    monkeypatch.setenv("EMBED_MODEL", "stub")
+    monkeypatch.setitem(R.LABELS, "dense", R.LABELS["dense"])  # put back what the run changes
+    monkeypatch.setattr(R, "get_embedder", lambda kind: lambda texts: np.ones((len(texts), 2), np.float32))
+    labels = {r["key"]: r["label"] for r in run.run_dataset("fixture", dense="openai")["rows"]}
+    assert labels["dense"] == "Dense, stub"
