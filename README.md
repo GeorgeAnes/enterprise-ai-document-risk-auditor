@@ -83,7 +83,7 @@ identity. The separate Terraform-state account still has shared keys enabled.
 
 > **The first request took ~20s.** The backend scaled to zero when idle, so the
 > first request after a quiet period cold-started a container. Subsequent
-> requests were under 300ms. That tradeoff is why it ran at €0/month; see
+> requests were under 300ms. That tradeoff is why it was designed to cost about €0/month at idle; see
 > [the deployment architecture](docs/architecture-azure.md#the-cold-start-and-why-it-is-here)
 > for why it was chosen.
 
@@ -333,7 +333,7 @@ Results of 30 September 2026 (Python 3.11.15, numpy 2.4.6, wordllama 0.4.0.post1
 | RRF(BM25, dense) | 0.796 [0.787, 0.805] | 0.334 [0.323, 0.344] |
 | RRF(BM25, LSA) | 0.588 [0.578, 0.599] | 0.322 [0.311, 0.332] |
 
-What this shows: on SQuAD paragraphs BM25 is 0.097 above the shipped TF-IDF, and sublinear TF-IDF, which only changes the term-frequency weight, is 0.075 above it, so most of BM25's gain there comes from damping term frequency. On CUAD sentences the four lexical rows are within 0.016 of each other. Static dense vectors are below the shipped TF-IDF on both sets. Fusing BM25 with them (RRF) is 0.051 below BM25 on SQuAD and 0.009 above it on CUAD. The paired intervals, the split by query-to-passage word overlap and the leak checks are in [docs/evaluation.md](docs/evaluation.md).
+What this shows: on SQuAD paragraphs BM25 is 0.097 above the shipped TF-IDF, and sublinear TF-IDF, which only changes the term-frequency weight, is 0.075 above it, so changing only the term-frequency weight recovers about three quarters of BM25's gain there. On CUAD sentences the four lexical rows are within 0.016 of each other. Static dense vectors are below the shipped TF-IDF on both sets. Fusing BM25 with them (RRF) is 0.051 below BM25 on SQuAD and 0.009 above it on CUAD. The paired intervals, the split by query-to-passage word overlap and the leak checks are in [docs/evaluation.md](docs/evaluation.md).
 
 Idf differs between the setups: it is computed over all 2,067 paragraphs for SQuAD, over one contract for CUAD, and over the chunks of one document in the auditor.
 
@@ -345,7 +345,6 @@ Limits:
 - One seed and one setting of k1, b and LSA dimensions; nothing was tuned. No transformer embedding was run.
 - The 20-query fixture in `evals/fixtures/mini.json` is illustrative: no intervals and no claims.
 - CUAD queries with no annotated answer are dropped, which makes that task easier than auditing a claim. The limits of the leak checks and of the per-third columns are listed in [docs/evaluation.md](docs/evaluation.md).
-- Unrelated to the benchmark and still true of the repository: the backend's endpoints have no authentication, and `backend/requirements.txt` gives version lower bounds only.
 
 Not validated:
 
@@ -367,6 +366,7 @@ Mapping to Azure, by description only and not validated (none of it was run):
 - The optional LLM adapter is intentionally not required for the core workflow.
 - An earlier FEVER evaluation was removed because its preparation path leaked gold labels into pipeline inputs; the code remains in the git history.
 - CUAD annotations are designed for legal clause extraction and review. This project uses CUAD to stress-test contract ingestion and risk triage, not to measure hallucination detection accuracy.
+- The backend has no authentication, and `backend/requirements.txt` gives version lower bounds only.
 
 ## Future Work
 
