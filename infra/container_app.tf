@@ -45,9 +45,9 @@ resource "azurerm_container_app" "backend" {
   # Used in Task 10 to grant this app -- and nothing else -- read access to
   # the samples container. The Key Vault grant planned for Task 11 is
   # deferred: no Key Vault is provisioned (see docs/architecture-azure.md).
-  # Note there is no
-  # `registry` block anywhere in this resource: the GHCR package is public,
-  # so the pull needs no credential at all. That absence is deliberate.
+  # Note there is no `registry` block anywhere in this resource: the GHCR
+  # package is public, so the pull needs no credential at all. That absence
+  # is deliberate.
   identity {
     type = "SystemAssigned"
   }
