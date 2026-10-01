@@ -178,7 +178,7 @@ Concretely:
 | GitHub Container Registry | $0 | $0 — free for public packages, unlimited bandwidth |
 | Azure Static Web Apps (Free tier) | $0 | $0 — 100 GB/month bandwidth included, hard-capped not billed |
 | Blob Storage (a few small sample docs) | ~$0.00 | ~$0.00–0.01 — storage cost on a handful of KB-sized files rounds to fractions of a cent (the app does not read them at runtime) |
-| Key Vault (Standard, RBAC) — deferred, not provisioned | $0 | $0 until built; once Gemini is enabled, a few secret reads per cold start, priced per 10k ops, still ~$0.00 |
+| Key Vault (Standard, RBAC; deferred, not provisioned) | $0 | $0 until built; once Gemini is enabled, a few secret reads per cold start, priced per 10k ops, still ~$0.00 |
 | Terraform remote state (Storage Account, tiny) | ~$0.01 | ~$0.01 — one small `.tfstate` blob, negligible storage + transaction cost |
 | Outbound data transfer | $0 | $0 — well inside the 100 GB/month free egress allowance |
 | **Total** | **~$0.01/month** | **~$0.01–0.06/month** |

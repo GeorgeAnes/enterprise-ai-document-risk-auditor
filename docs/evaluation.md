@@ -6,7 +6,7 @@ Run on 30 September 2026 with Python 3.11.15, numpy 2.4.6 and wordllama 0.4.0.po
 
 ## What every row sees
 
-- Each passage is one string and each query is one string. All lexical rows tokenize with the auditor's own `_tokens` (lowercase, ASCII letters and digits with inner hyphens, at least three characters, 22 stop words). The dense row uses WordLlama's tokenizer, so it does not see identical tokens.
+- Each passage is one string and each query is one string. All lexical rows tokenize with the auditor's own `_tokens` (lowercase, runs of ASCII letters, digits and hyphens that start with a letter or digit, at least three characters, 22 stop words). The dense row uses WordLlama's tokenizer, so it does not see identical tokens.
 - Inverse document frequency (idf) comes from the passages a query searches: all 2,067 paragraphs for SQuAD, the sentences of one contract for CUAD. The auditor computes idf from the chunks of the one document it is auditing, plus the chunks of an evidence pack when one is supplied. The CUAD setup is close to that. The SQuAD setup does not, because its corpus is 2,067 paragraphs from many articles.
 - `TF-IDF as shipped` is the auditor's scoring: raw term counts, idf = ln((N+1)/(df+1)) + 1, cosine. A query term absent from the corpus gets idf 1.0 and counts in the query length. `tests/test_retrieval_bench.py` compares it with the auditor's `_build_idf`, `_tfidf_vector` and `_cosine`, and every run repeats that comparison on 200 sampled queries (largest difference 6.4e-08 on SQuAD, 1.1e-07 on CUAD).
 - `TF-IDF, sublinear tf` replaces the count with 1 + ln(count). It sits beside BM25 in every table because BM25 also saturates term frequency. Comparing BM25 with the shipped scorer alone would mix that effect with the rest of what BM25 changes.
@@ -132,7 +132,7 @@ Wall-clock time of the full runs on the machine above: fixture 0.4 s, SQuAD 67 t
 
 ## Not validated
 
-- The GitHub Actions workflow in `.github/workflows/ci.yml` has not run. It was written here and cannot execute in this environment.
+- The GitHub Actions workflow in `.github/workflows/ci.yml` has not run on GitHub. Its install and `pytest` commands passed from a clean export of the repository in a fresh Python 3.11 virtual environment on Linux.
 - `--dense openai` against a real endpoint, including Azure OpenAI in Foundry Models.
 - Any Azure AI Search index, hybrid query or Foundry evaluator run. The mapping in the README is by description of the documentation only.
 - Windows execution of the commands above. The paths use `pathlib` and the tests ran on Linux.

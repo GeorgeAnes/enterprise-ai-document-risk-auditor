@@ -353,7 +353,7 @@ Limits:
 
 Not validated:
 
-- The GitHub Actions workflow in `.github/workflows/ci.yml` has not run.
+- The GitHub Actions workflow in `.github/workflows/ci.yml` has not run on GitHub. Its install and `pytest` commands passed from a clean export of the repository in a fresh Python 3.11 virtual environment on Linux.
 - `--dense openai` against a real endpoint.
 - The Azure mapping below.
 - Running the commands on Windows. They were run on Linux.
