@@ -1,5 +1,5 @@
 {
-  "note": "Hand-written for this repository, not taken from a dataset. 40 passages, 20 paraphrase queries; each query shares at most one content word with its gold passage (checked by tests/test_retrieval_bench.py).",
+  "note": "Made for this repository, not taken from a dataset. 40 passages, 20 paraphrase queries; each query shares at most one content word with its gold passage (checked by tests/test_retrieval_bench.py).",
   "passages": [
     {"id": "s01", "text": "The supplier must deliver a security report every month, no later than five business days after month end."},
     {"id": "s02", "text": "Customer data is encrypted in transit and at rest using AES-256."},

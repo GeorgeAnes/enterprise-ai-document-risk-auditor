@@ -8,7 +8,7 @@ from pathlib import Path
 
 from . import retrievers as R
 
-TITLE = {"fixture": "Fixture (hand-written)", "squad": "SQuAD dev-v1.1", "cuad": "CUAD-QA, sentence chunks"}
+TITLE = {"fixture": "Fixture (illustrative)", "squad": "SQuAD dev-v1.1", "cuad": "CUAD-QA, sentence chunks"}
 
 
 def _f(x, sign=False):
@@ -154,7 +154,7 @@ th{white-space:normal;vertical-align:bottom}th:first-child,td:first-child{text-a
 details{margin:10px 0}summary{cursor:pointer}pre{background:var(--panel);padding:10px;overflow-x:auto;font-size:12px;border-radius:6px}
 select{font:inherit;max-width:100%;padding:4px;background:var(--panel);color:var(--fg);border:1px solid var(--line)}
 .q{background:var(--panel);padding:10px 12px;border-radius:6px;margin:10px 0}.gold{background:var(--gold)}
-#insp td{white-space:normal;text-align:left;vertical-align:top}#insp td:first-child{white-space:nowrap}.rank{font-weight:700;white-space:nowrap}
+#insp th{text-align:left}#insp td{white-space:normal;text-align:left;vertical-align:top}#insp td:first-child{white-space:nowrap}.rank{font-weight:700;white-space:nowrap}
 .snip{display:block;padding:2px 4px;margin:1px 0;border-radius:3px}.snip.g{background:var(--gold)}
 code{font-size:12px;word-break:break-all}
 </style></head><body><main>
@@ -183,7 +183,7 @@ function show(i) {
     const td = el("td"); m.top.forEach(s => td.append(el("span", s.text, "snip" + (s.gold ? " g" : "")))); tr.append(td); t.append(tr);
   });
   const wrap = el("div", undefined, "scroll"); wrap.append(t); box.append(wrap);
-  const d = el("details"); d.append(el("summary", "Show the maths (LSA, the gold passage vs the query)"));
+  const d = el("details"); d.append(el("summary", "Show the math (LSA, the gold passage vs the query)"));
   const x = it.maths, f = a => a.map(v => v.toFixed(4)).join(", ");
   d.append(el("pre", [
     "LSA keeps the top " + x.dims + " singular directions of the tf-idf matrix. A text becomes a vector of length " + x.dims + ".",
@@ -205,11 +205,11 @@ def write_html(data: dict, path) -> None:
         r = data.get(name)
         if not r:
             continue
-        v = r["meta"]["versions"]
+        v, (lo, hi) = r["meta"]["versions"], r["meta"]["lsa_dims"]
         versions = versions or f"Python {v['python']}, numpy {v['numpy']}, wordllama {v['wordllama']}"
-        note = f"<p class=note>Dense row: {escape(r['meta']['dense'])}. LSA dimensions: {r['meta']['lsa_dims'][0]} to {r['meta']['lsa_dims'][1]}. Ties are broken by a fixed shuffle.</p>"
+        note = f"<p class=note>Dense row: {escape(r['meta']['dense'])}. LSA dimensions: {lo if lo == hi else f'{lo} to {hi}'}. Ties are broken by a fixed shuffle.</p>"
         if name == "fixture":
-            note += f"<p class=note>Illustrative only: 20 hand-written queries, no intervals, no claims. Every query shares at most one content word with its gold passage by construction, which is why the lexical rows are low. Fixture sha256 (line endings normalized to LF): <code>{r['meta']['notes']['fixture_sha256']}</code></p>"
+            note += f"<p class=note>Illustrative only: 20 queries, no intervals, no claims. Every query shares at most one content word with its gold passage by construction, which is why the lexical rows are low. Fixture sha256 (line endings normalized to LF): <code>{r['meta']['notes']['fixture_sha256']}</code></p>"
         lk = "".join(f"<li>{escape(x)}</li>" for x in leak_lines(r))
         sections.append(
             f"<h2>{escape(TITLE[name])}</h2><p>{escape(describe(r))}</p><div class=scroll>{_table_html(r)}</div>{_bars(r)}{note}"

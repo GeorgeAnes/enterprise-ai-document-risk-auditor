@@ -292,33 +292,29 @@ The script prints JSON summaries to the terminal and writes generated outputs un
 
 ## Retrieval Benchmark
 
-This benchmark tests query-to-passage retrieval on two public datasets, SQuAD and CUAD. It does not test claim-to-evidence retrieval, which is what the auditor does with a claim it extracted from a document. The CUAD "queries" are 41 fixed category prompts repeated across contracts, and are not claims. SQuAD questions were written by annotators who were reading the passage, which favors methods that match words. How far either fact changes the conclusions for the auditor's own claims has not been measured.
+This benchmark tests query-to-passage retrieval on two public datasets, SQuAD and CUAD. It does not test claim-to-evidence retrieval, which is what the auditor does with a claim it extracted from a document. The CUAD "queries" are 41 fixed category prompts repeated across contracts, and are not claims. SQuAD annotators wrote their questions while reading the passage, which favors methods that match words. How far either fact changes the conclusions for the auditor's own claims has not been measured.
 
 `evals/retrieval/` compares the auditor's TF-IDF retrieval with sublinear TF-IDF, BM25, LSA, static dense vectors and reciprocal rank fusion (RRF), with paired bootstrap intervals and leak checks. `backend/` is not changed. The TF-IDF row is a numpy version of the auditor's scoring. It uses the auditor's tokenizer, and for CUAD its normalizer and chunker, unchanged, and it is checked against `_build_idf`, `_tfidf_vector` and `_cosine` by a test and on 200 sampled queries in every run.
 
 Use Python 3.11 to 3.13: `evals/requirements.txt` pins numpy 2.4.6, which needs Python 3.11 or newer, and wordllama 0.4.0.post1, which has wheels up to Python 3.13.
 
-Run it (bash):
-
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r backend/requirements.txt -r evals/requirements.txt
-python -m evals.retrieval.run --dataset fixture   # offline, about a second
-python -m evals.retrieval.fetch_data              # git clone --depth 1 of SQuAD and CUAD into data/raw/ (ignored by Git)
-python -m evals.retrieval.run --dataset squad     # 67 to 157 s over three runs
-python -m evals.retrieval.run --dataset cuad      # 139 to 339 s over three runs
-```
-
-PowerShell:
+Run it (PowerShell):
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r backend\requirements.txt -r evals\requirements.txt
-python -m evals.retrieval.run --dataset fixture
-python -m evals.retrieval.fetch_data
-python -m evals.retrieval.run --dataset squad
-python -m evals.retrieval.run --dataset cuad
+python -m evals.retrieval.run --dataset fixture   # offline, about a second
+python -m evals.retrieval.fetch_data              # git clone --depth 1 of SQuAD and CUAD into data/raw/ (ignored by Git)
+python -m evals.retrieval.run --dataset squad     # 67 to 189 s over four runs
+python -m evals.retrieval.run --dataset cuad      # 139 to 799 s over four runs
+```
+
+Bash, for the first two steps (the `python -m evals.retrieval` commands are the same):
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r backend/requirements.txt -r evals/requirements.txt
 ```
 
 A full run of a dataset writes `docs/retrieval-results.json` and `docs/retrieval-bench.html`, one static page with bars, intervals and a query inspector that shows where a chosen query's gold passage ranks under each method. `--limit N` runs a sample (N SQuAD questions or N CUAD contracts) and does not touch `docs/`. The times above are for full runs on 2 vCPU and 7 GB RAM; the slower runs overlapped with other jobs.
@@ -341,7 +337,7 @@ What this shows: on SQuAD paragraphs BM25 is 0.097 above the shipped TF-IDF, and
 
 Idf differs between the setups: it is computed over all 2,067 paragraphs for SQuAD, over one contract for CUAD, and over the chunks of one document in the auditor.
 
-Embeddings: the dense row is WordLlama's static 256-dimension vectors, labeled "static 256-d vectors: a floor, not a verdict". The WordLlama package is MIT licensed, the license of its weights was not checked, and nothing from it is vendored. `--dense openai` reads `EMBED_BASE_URL`, `EMBED_MODEL` and optionally `EMBED_KEY` for an OpenAI-compatible `/embeddings` endpoint; it has only run against a local stub server.
+Embeddings: the dense row is WordLlama's static 256-dimension vectors, labeled "static 256-d vectors, no transformer model" in the report. The WordLlama package is MIT licensed, the license of its weights was not checked, and nothing from it is vendored. `--dense openai` reads `EMBED_BASE_URL`, `EMBED_MODEL` and optionally `EMBED_KEY` for an OpenAI-compatible `/embeddings` endpoint; it has only run against a local stub server.
 
 Limits:
 
@@ -349,11 +345,10 @@ Limits:
 - One seed and one setting of k1, b and LSA dimensions; nothing was tuned. No transformer embedding was run.
 - The 20-query fixture in `evals/fixtures/mini.json` is illustrative: no intervals and no claims.
 - CUAD queries with no annotated answer are dropped, which makes that task easier than auditing a claim. The limits of the leak checks and of the per-third columns are listed in [docs/evaluation.md](docs/evaluation.md).
-- Out of scope for this change, and still true of the repository: the backend's endpoints have no authentication, and `backend/requirements.txt` gives version lower bounds only.
+- Unrelated to the benchmark and still true of the repository: the backend's endpoints have no authentication, and `backend/requirements.txt` gives version lower bounds only.
 
 Not validated:
 
-- The GitHub Actions workflow in `.github/workflows/ci.yml` has not run on GitHub. Its install and `pytest` commands passed from a clean export of the repository in a fresh Python 3.11 virtual environment on Linux.
 - `--dense openai` against a real endpoint.
 - The Azure mapping below.
 - Running the commands on Windows. They were run on Linux.

@@ -124,14 +124,14 @@ def test_fixture_run_and_static_report(tmp_path):
     assert [r["key"] for r in result["rows"]] == [k for k in R.LABELS if k != "dense" and k != "rrf_bm25_dense"]
     assert len(result["inspector"]) == 20 and result["leak_checks"]["tfidf_parity"]["max_abs_difference"] < 1e-6
     assert result["leak_checks"]["gold_overlap"] == {"marks": 20, "distinct": 20, "passages": 40}  # one gold passage per query, none shared
-    entry = result["inspector"][0]["maths"]  # the "show the maths" cosine is the score the LSA row ranked by
+    entry = result["inspector"][0]["maths"]  # the "show the math" cosine is the score the LSA row ranked by
     task, qrels = D.load_fixture()
     scores, _ = R.score_all(task.corpora["fixture"], [q.text for q in task.queries])
     assert entry["cosine"] == pytest.approx(scores["lsa"][0, min(qrels[task.queries[0].id])], abs=1e-3)
     page = tmp_path / "r.html"
     report.write_html({"fixture": json.loads(json.dumps(result))}, page)
     html = page.read_text(encoding="utf-8")
-    assert "Show the maths" in html and "http://" not in html and "https://" not in html
+    assert "Show the math" in html and "http://" not in html and "https://" not in html
     assert not any(tag in html for tag in ("<link", " src=", "@import", "url("))
 
 

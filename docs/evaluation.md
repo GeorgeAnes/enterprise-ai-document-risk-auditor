@@ -1,6 +1,6 @@
 # Retrieval evaluation
 
-This benchmark tests query-to-passage retrieval on two public datasets, SQuAD and CUAD. It does not test claim-to-evidence retrieval, which is what the auditor does with a claim it extracted from a document. The CUAD "queries" are 41 fixed category prompts (for example "Governing Law") repeated across contracts, and are not claims. SQuAD questions were written by annotators who were reading the passage, which favors methods that match words. How far either fact changes the conclusions for the auditor's own claims has not been measured.
+This benchmark tests query-to-passage retrieval on two public datasets, SQuAD and CUAD. It does not test claim-to-evidence retrieval, which is what the auditor does with a claim it extracted from a document. The CUAD "queries" are 41 fixed category prompts (for example "Governing Law") repeated across contracts, and are not claims. SQuAD annotators wrote their questions while reading the passage, which favors methods that match words. How far either fact changes the conclusions for the auditor's own claims has not been measured.
 
 Run on 30 September 2026 with Python 3.11.15, numpy 2.4.6 and wordllama 0.4.0.post1 (2 vCPU, 7 GB RAM, Linux). The tables and leak-check numbers below are produced by the commands under Reproduce and stored in `docs/retrieval-results.json`; `python -m evals.retrieval.report --markdown` prints the tables again. The numbers described as one-off checks (LSA dimensions, the CUAD shuffle and the CUAD lowest third) came from short scripts run once on the same day. Those scripts are not in the repository.
 
@@ -12,7 +12,7 @@ Run on 30 September 2026 with Python 3.11.15, numpy 2.4.6 and wordllama 0.4.0.po
 - `TF-IDF, sublinear tf` replaces the count with 1 + ln(count). It sits beside BM25 in every table because BM25 also saturates term frequency. Comparing BM25 with the shipped scorer alone would mix that effect with the rest of what BM25 changes.
 - `BM25` uses k1 = 1.2, b = 0.75, the Lucene-style idf ln((N - df + 0.5)/(df + 0.5) + 1), and counts each distinct query term once. `BM25, b=0` switches off length normalization.
 - `LSA-64` is a truncated SVD of the normalized tf-idf matrix with 64 dimensions (fewer when a corpus is smaller), and the query is projected into it. 64 is small for 2,067 paragraphs. A one-off check on 1,000 sampled SQuAD queries, not part of the bench, gave nDCG@10 0.532 at 256 dimensions, 0.700 at 1,024 and 0.753 at 2,066, which equals shipped TF-IDF on that sample (0.753). Treat the row as a low-rank floor.
-- `Dense, static vectors` is WordLlama's 256-dimension static embeddings: a floor, not a verdict on embeddings. The WordLlama package is MIT licensed. The license of the weights inside its wheel was not checked, and nothing from it is vendored here.
+- `Dense, static vectors` is WordLlama's 256-dimension static embeddings (no transformer model), so it says little about what embeddings can do on these tasks. The WordLlama package is MIT licensed. The license of the weights inside its wheel was not checked, and nothing from it is vendored here.
 - `RRF` sums 1 / (60 + rank) over its two legs. A lexical leg gives nothing to a passage that matched no query term. The dense and LSA legs rank every passage.
 - Equal scores are ordered by one fixed random permutation per corpus, so a passage's position in the file never wins a tie. `Random` is a seeded random score matrix.
 
@@ -94,7 +94,7 @@ Printed after every run and stored in the results file.
 
 ## Fixture
 
-`evals/fixtures/mini.json` holds 40 passages and 20 queries written by hand for this repository, each query a paraphrase of one passage sharing at most one content word with it (a test enforces this). Results are illustrative: 20 queries, no intervals, no claims. The fixture favors the dense row by construction. It was committed before the final runs, and its sha256 is printed in the report. On it the dense row ranks the gold passage first for 6 of 20 queries and in the top 10 for 20 of 20; shipped TF-IDF does so for 3 and 6.
+`evals/fixtures/mini.json` holds 40 passages and 20 queries made for this repository, each query a paraphrase of one passage sharing at most one content word with it (a test enforces this). Results are illustrative: 20 queries, no intervals, no claims. The fixture favors the dense row by construction. Its passages and queries were committed before the final runs, and its sha256 is printed in the report. On it the dense row ranks the gold passage first for 6 of 20 queries and in the top 10 for 20 of 20; shipped TF-IDF does so for 3 and 6.
 
 ## Reproduce
 
@@ -112,7 +112,7 @@ PowerShell: the same commands, with `.\.venv\Scripts\Activate.ps1` first.
 
 A full run of a dataset writes `docs/retrieval-results.json` and `docs/retrieval-bench.html`. `--limit N` samples N SQuAD questions or N CUAD contracts and does not touch `docs/` unless `--out` is given. `--dense none` drops the dense rows.
 
-Wall-clock time of the full runs on the machine above: fixture 0.4 s, SQuAD 67 to 157 s and CUAD 139 to 339 s over three runs of nearly the same code, the slower ones while other jobs were running (peak memory about 2.9 GB for SQuAD and 0.7 GB for CUAD).
+Wall-clock time of the full runs on the machine above: fixture 0.4 to 0.9 s, SQuAD 67 to 189 s and CUAD 139 to 799 s over four runs of nearly the same code, the slower ones while other jobs were running (peak memory about 2.9 GB for SQuAD and 0.7 GB for CUAD).
 
 `--dense openai` reads `EMBED_BASE_URL`, `EMBED_MODEL` and optionally `EMBED_KEY` for any OpenAI-compatible `/embeddings` endpoint and caches vectors in `data/eval/embed_cache.sqlite`. It has only been tested against a local stub server in `tests/test_retrieval_bench.py`.
 
@@ -132,7 +132,6 @@ Wall-clock time of the full runs on the machine above: fixture 0.4 s, SQuAD 67 t
 
 ## Not validated
 
-- The GitHub Actions workflow in `.github/workflows/ci.yml` has not run on GitHub. Its install and `pytest` commands passed from a clean export of the repository in a fresh Python 3.11 virtual environment on Linux.
 - `--dense openai` against a real endpoint, including Azure OpenAI in Foundry Models.
 - Any Azure AI Search index, hybrid query or Foundry evaluator run. The mapping in the README is by description of the documentation only.
 - Windows execution of the commands above. The paths use `pathlib` and the tests ran on Linux.

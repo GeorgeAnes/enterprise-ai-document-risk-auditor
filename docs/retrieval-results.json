@@ -30,7 +30,7 @@
   "meta": {
    "corpora": 501,
    "date": "2026-09-30",
-   "dense": "wordllama (static 256-d vectors: a floor, not a verdict)",
+   "dense": "wordllama (static 256-d vectors, no transformer model)",
    "limit": null,
    "lsa_dims": [
     11,
@@ -4530,14 +4530,14 @@
   "meta": {
    "corpora": 1,
    "date": "2026-09-30",
-   "dense": "wordllama (static 256-d vectors: a floor, not a verdict)",
+   "dense": "wordllama (static 256-d vectors, no transformer model)",
    "limit": null,
    "lsa_dims": [
     39,
     39
    ],
    "notes": {
-    "fixture_sha256": "225fbb756085f2d959a9dfea9ac381968fdade6a28df018f2255d634222566a6"
+    "fixture_sha256": "de98c297cfbe2ee90e2493f670ae7a6f1509ec8932376bae9822b5cc1952afb4"
    },
    "passages": 40,
    "queries": 20,
@@ -10771,7 +10771,7 @@
   "meta": {
    "corpora": 1,
    "date": "2026-09-30",
-   "dense": "wordllama (static 256-d vectors: a floor, not a verdict)",
+   "dense": "wordllama (static 256-d vectors, no transformer model)",
    "limit": null,
    "lsa_dims": [
     64,
