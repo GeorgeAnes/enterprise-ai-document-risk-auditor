@@ -28,7 +28,7 @@ from . import retrievers as R
 RESULTS = D.ROOT / "docs" / "retrieval-results.json"
 HTML = D.ROOT / "docs" / "retrieval-bench.html"
 LOADERS = {"fixture": D.load_fixture, "squad": D.load_squad, "cuad": D.load_cuad}
-DENSE_NOTE = {"wordllama": "static 256-d vectors: a floor, not a verdict"}
+DENSE_NOTE = {"wordllama": "static 256-d vectors, no transformer model"}
 INSPECT_SQUAD, PARITY_QUERIES, SHUFFLES, SNIPPET = 30, 200, 10, 160
 PAIRS = [("bm25", "tfidf_sub"), ("rrf_bm25_dense", "bm25"), ("rrf_bm25_lsa", "bm25")]  # a minus b, beyond the comparison with shipped TF-IDF
 
