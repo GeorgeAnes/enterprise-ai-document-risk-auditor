@@ -11,11 +11,11 @@ resource "azurerm_log_analytics_workspace" "this" {
   # The main guardrail on log ingestion. Ingestion and retention are separate
   # meters: the free 5 GB/month grant is on *ingestion*, and retention
   # settings do not constrain it. Without this cap nothing in the stack
-  # bounds log volume. When the daily cap is reached, ingestion stops for the
-  # remainder of the UTC day. The cap is not exact: Azure documents that it
-  # cannot stop collection at precisely the cap, that some excess data is
-  # expected, and that data collected above the cap is still billed. The
-  # budget in budget.tf only sends email.
+  # bounds log volume. When the daily cap is reached, ingestion stops until
+  # the workspace's daily reset (the hour differs per workspace). The cap is
+  # not exact: Azure documents that it cannot stop collection at precisely the
+  # cap, that some excess data is expected, and that data collected above the
+  # cap is still billed. The budget in budget.tf only sends email.
   # 0.1 GB/day is ~3 GB/month, comfortably inside the grant and far more
   # than one demo app produces.
   daily_quota_gb = 0.1

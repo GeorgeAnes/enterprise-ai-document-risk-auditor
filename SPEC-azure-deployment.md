@@ -19,8 +19,8 @@ Success looks like: `terraform apply` stands the whole stack up from nothing, th
 1. **Single environment.** One resource group (e.g. `rg-docaudit-prod-ne`), no dev/prod split — this is a single-operator portfolio demo, not a team project. *(finalized by default below — say so if wrong.)*
 2. **Terraform state is remote**, in an Azure Storage Account — **confirmed.** Local state was rejected specifically because Phase 2 (GitHub Actions CI/CD) needs a state file reachable from CI, not just from one laptop.
 3. **GitHub Container Registry package stays public** (matches the public GitHub repo). This means Azure Container Apps can pull the image with **no registry credentials at all** — one less secret to manage.
-4. **CI/CD is out of scope for this spec** — confirmed by your own framing ("Phase 2 is a CI/CD pipeline"). This spec covers Terraform infra + manual `docker build/push` + `terraform apply`; GitHub Actions is the next spec once this one is proven and remote state exists for it to use.
-5. **`LLM_MODE=off` for this deployment — confirmed.** Deterministic pipeline only. LM Studio was already ruled out (localhost-only, unreachable from Azure); Gemini is deliberately deferred too, not just LM Studio. Key Vault was to be provisioned now (per your standing "design it in, don't retrofit" instruction) with the RBAC wiring proven end-to-end, holding zero secrets until Gemini is turned on later. **Deferred, not provisioned:** it goes in with the first real secret — see Tech Stack.
+4. **CI/CD is out of scope for this spec** — by the project plan ("Phase 2 is a CI/CD pipeline"). This spec covers Terraform infra + manual `docker build/push` + `terraform apply`; GitHub Actions is the next spec once this one is proven and remote state exists for it to use.
+5. **`LLM_MODE=off` for this deployment — confirmed.** Deterministic pipeline only. LM Studio was already ruled out (localhost-only, unreachable from Azure); Gemini is deliberately deferred too, not just LM Studio. Key Vault was to be provisioned now (the principle was "design it in, don't retrofit") with the RBAC wiring proven end-to-end, holding zero secrets until Gemini is turned on later. **Deferred, not provisioned:** it goes in with the first real secret — see Tech Stack.
 
 ### Remote state backend — bootstrap mechanics
 
@@ -106,7 +106,7 @@ Both additions above were found during the Plan phase by tracing the actual code
 ## Code Style
 
 - One resource *family* per file (see Project Structure above) — not one file per resource.
-- Every resource tagged: `project = "document-risk-auditor"`, `environment = "prod"`, `managed_by = "terraform"`. Tags are how you'll confirm in the Azure cost view that nothing untagged is quietly costing money.
+- Every resource tagged: `project = "document-risk-auditor"`, `environment = "prod"`, `managed_by = "terraform"`. Tags make it possible to confirm in the Azure cost view that nothing untagged is quietly costing money.
 - Resource naming: `<type>-docaudit-prod-ne` (e.g. `cae-docaudit-prod-ne` for the Container Apps environment, `stdocauditprodne` for storage — storage accounts can't contain hyphens).
 - No hardcoded secrets or subscription IDs in `.tf` files — everything sensitive comes from `variables.tf` backed by environment variables.
 
@@ -152,7 +152,7 @@ No automated Terraform test framework (Terratest, etc.) — disproportionate for
 
 ## Security & IAM Design
 
-*(Threat-modeled per `security-and-hardening` before any Terraform is written, per your standing instruction.)*
+*(Threat-modeled per `security-and-hardening` before any Terraform is written.)*
 
 | Threat (STRIDE) | Risk here | Mitigation |
 |---|---|---|
@@ -174,7 +174,7 @@ Concretely:
 | Resource | Idle | Light demo traffic |
 |---|---|---|
 | Container Apps (Consumption, min=0) | $0 — no vCPU/memory billed while scaled to zero | ~$0 — a few dozen requests/day is far inside the permanent free grant (180k vCPU-s / 360k GiB-s / 2M requests per month) |
-| Log Analytics workspace (required by Container Apps env) | $0 | $0 — well under the 5 GB/month free ingestion, bounded by `daily_quota_gb = 0.1`, which stops most ingestion when hit. The cap is not exact and data collected above it is still billed. Retention is a separate meter and does not bound ingestion; `retention_in_days = 30` is set on its own merits (first 31 days are free) |
+| Log Analytics workspace (optional, kept by choice) | $0 | $0 — well under the 5 GB/month free ingestion, bounded by `daily_quota_gb = 0.1`, which stops most ingestion when hit. The cap is not exact and data collected above it is still billed. Retention is a separate meter and does not bound ingestion; `retention_in_days = 30` is set on its own merits (first 31 days are free) |
 | GitHub Container Registry | $0 | $0 — free for public packages, unlimited bandwidth |
 | Azure Static Web Apps (Free tier) | $0 | $0 — 100 GB/month bandwidth included, hard-capped not billed |
 | Blob Storage (a few small sample docs) | ~$0.00 | ~$0.00–0.01 — storage cost on a handful of KB-sized files rounds to fractions of a cent (the app does not read them at runtime) |

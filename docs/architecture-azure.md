@@ -60,7 +60,7 @@ flowchart TB
     class log,budget guard
 ```
 
-## Why it costs ~€0/month
+## Why it was designed to cost about €0/month at idle
 
 | Component | Cost at idle | What keeps it there |
 |---|---|---|
@@ -85,7 +85,7 @@ consequence of having no traffic rather than an enforced ceiling.
 
 The backend scales to zero when idle, so **the first request after a quiet
 period takes ~20s** while a container cold-starts. Subsequent requests are
-under 300ms. That tradeoff is why this runs at €0/month.
+under 300ms. That tradeoff is why it was designed to cost about €0/month at idle.
 
 This is a deliberate choice, not an oversight. The alternative —
 `min_replicas = 1` — would keep a container resident around the clock and turn
